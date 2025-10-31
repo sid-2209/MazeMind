@@ -1,4 +1,7 @@
-# MazeMind
+<p align="center">
+  <img src="public/assets/logo_grey.png" alt="MazeMind Logo" width="200"/>
+</p>
+
 
 **Status:** Under Development  
 **Type:** Research Simulation Project  
