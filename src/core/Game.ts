@@ -1,13 +1,14 @@
 // src/core/Game.ts
 /**
- * Game - Main game controller (Updated for Day 8)
+ * Game - Main game controller (Updated for Day 9)
  *
  * Coordinates all game systems:
  * - Rendering (PixiJS)
  * - Input (keyboard/mouse)
  * - Time management
- * - Fog of war (NEW in Day 8)
- * - View modes (NEW in Day 8)
+ * - Fog of war (Day 8)
+ * - View modes (Day 8)
+ * - UI system (NEW in Day 9)
  * - Agent systems
  * - Game loop
  */
@@ -23,6 +24,7 @@ import { Agent } from '../agent/Agent';
 import { AgentRenderer } from '../agent/AgentRenderer';
 import { AgentController } from '../agent/AgentController';
 import { ViewModeManager } from '../ui/ViewModeManager';
+import { UIManager } from '../ui/UIManager';
 
 export class Game {
   // Core systems
@@ -30,7 +32,8 @@ export class Game {
   private renderer: Renderer | null = null;
   private inputManager: InputManager | null = null;
   private timeManager: TimeManager | null = null;
-  private viewModeManager: ViewModeManager | null = null;  // NEW in Day 8
+  private viewModeManager: ViewModeManager | null = null;  // Day 8
+  private uiManager: UIManager | null = null;  // NEW in Day 9
 
   // Agent systems
   private agent: Agent | null = null;
@@ -69,7 +72,8 @@ export class Game {
       await this.initRenderer();
       this.initInput();
       await this.initAgent();
-      await this.initViewModes();  // NEW in Day 8
+      await this.initViewModes();  // Day 8
+      await this.initUI();  // NEW in Day 9
       this.start();
 
       console.log('✅ Game initialized successfully!');
@@ -183,7 +187,7 @@ export class Game {
   }
 
   /**
-   * Initialize view mode system (NEW in Day 8)
+   * Initialize view mode system (Day 8)
    */
   private async initViewModes(): Promise<void> {
     if (!this.renderer || !this.agent || !this.timeManager) {
@@ -207,6 +211,36 @@ export class Game {
     }
 
     console.log('✅ View modes initialized');
+  }
+
+  /**
+   * Initialize UI system (NEW in Day 9)
+   */
+  private async initUI(): Promise<void> {
+    if (!this.renderer || !this.maze || !this.agent || !this.timeManager || !this.app) {
+      throw new Error('Cannot initialize UI: prerequisites not ready');
+    }
+
+    console.log('🎨 Initializing UI system...');
+
+    // Create UI manager
+    const uiLayer = this.renderer.getUILayer();
+    const fogOfWar = this.renderer.getFogOfWar();
+
+    this.uiManager = new UIManager(
+      uiLayer,
+      this.maze,
+      this.agent,
+      this.timeManager,
+      this.renderer.camera,
+      fogOfWar,
+      this.app.screen.width,
+      this.app.screen.height
+    );
+
+    await this.uiManager.init();
+
+    console.log('✅ UI system initialized');
   }
 
   /**
@@ -309,9 +343,14 @@ export class Game {
       this.agentRenderer.update(deltaTime);
     }
 
-    // Update view mode manager (NEW in Day 8)
+    // Update view mode manager (Day 8)
     if (this.viewModeManager) {
       this.viewModeManager.update(deltaTime);
+    }
+
+    // Update UI system (NEW in Day 9)
+    if (this.uiManager) {
+      this.uiManager.update(deltaTime);
     }
 
     // Update renderer (includes fog of war)
@@ -446,6 +485,11 @@ export class Game {
 
     this.isRunning = false;
 
+    if (this.uiManager) {
+      this.uiManager.destroy();
+      this.uiManager = null;
+    }
+
     if (this.viewModeManager) {
       this.viewModeManager.destroy();
       this.viewModeManager = null;
@@ -490,5 +534,10 @@ export class Game {
 
     this.app.renderer.resize(maxWidth, maxHeight);
     this.renderer.handleResize(maxWidth, maxHeight);
+
+    // Update UI layout (NEW in Day 9)
+    if (this.uiManager) {
+      this.uiManager.handleResize(maxWidth, maxHeight);
+    }
   }
 }
