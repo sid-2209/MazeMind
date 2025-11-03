@@ -1,0 +1,54 @@
+{
+  "name": "maze-mind",
+  "version": "0.1.0",
+  "description": "AI Agent Survival Maze Simulation - Testing AI resilience through simulated survival scenarios",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint src --ext ts,tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "generate-sprites": "node scripts/generate-sprites.js",
+    "create-tileset": "node scripts/create-tileset.js"
+  },
+  "dependencies": {
+    "pixi.js": "^7.3.2",
+    "gsap": "^3.12.2",
+    "seedrandom": "^3.0.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/seedrandom": "^3.0.5",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "@vitejs/plugin-react": "^4.1.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2",
+    "vite": "^4.5.0",
+    "vitest": "^0.34.6",
+    "@vitest/ui": "^0.34.6"
+  },
+  "keywords": [
+    "ai",
+    "simulation",
+    "maze",
+    "llm",
+    "cognitive-architecture",
+    "survival",
+    "research"
+  ],
+  "author": "Maze Mind Research Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/maze-mind"
+  }
+}

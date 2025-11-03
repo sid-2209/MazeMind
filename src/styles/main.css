@@ -1,0 +1,131 @@
+/* src/styles/main.css */
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body styling */
+body {
+  font-family: 'Courier New', monospace;
+  background: #000000;
+  color: #00ff00;
+  overflow: auto;
+  line-height: 1.6;
+}
+
+/* App container - offset for left control panel */
+#app {
+  width: calc(100vw - 360px);  /* Exclude panel width (320px + 40px margin) */
+  min-height: 100vh;
+  padding: 20px;
+  margin-left: 360px;  /* Push canvas right of panel */
+}
+
+/* Headings */
+h1 {
+  font-size: 2em;
+  margin-bottom: 20px;
+  color: #00ff00;
+  text-shadow: 0 0 10px #00ff00;
+}
+
+h2 {
+  font-size: 1.5em;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  color: #00ff00;
+}
+
+h3 {
+  font-size: 1.2em;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  color: #00ff00;
+}
+
+/* Pre-formatted text (for maze display) */
+pre {
+  background: #0a0a0a;
+  padding: 20px;
+  border: 1px solid #00ff00;
+  border-radius: 5px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.2;
+  color: #00ff00;
+}
+
+/* Paragraphs */
+p {
+  margin-bottom: 10px;
+}
+
+/* Strong text */
+strong {
+  color: #00ff00;
+  font-weight: bold;
+}
+
+/* Info boxes */
+.info-box {
+  background: #1a1a1a;
+  border: 1px solid #00ff00;
+  border-radius: 5px;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+/* Canvas styling (for PixiJS - Week 1 Day 3+) */
+canvas {
+  display: block;
+  border: 2px solid #00ff00;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+}
+
+/* Loading indicator */
+.loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 1.5em;
+  color: #00ff00;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Console output styling */
+.console-output {
+  background: #000;
+  color: #00ff00;
+  padding: 10px;
+  border: 1px solid #00ff00;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  margin: 10px 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Success/Error messages */
+.success {
+  color: #00ff00;
+}
+
+.error {
+  color: #ff0000;
+}
+
+.warning {
+  color: #ffaa00;
+}
