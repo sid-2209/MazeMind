@@ -45,7 +45,7 @@ export class DebugPanel {
   // Configuration
   private padding = 12;
   private panelWidth = 300;
-  private panelHeight = 280;
+  private panelHeight = 340;  // Increased from 280 to accommodate all content
 
   // Visible state
   private visible = false;
@@ -139,15 +139,28 @@ export class DebugPanel {
   private createDebugText(): void {
     const textStyle = new TextStyle({
       fontFamily: 'monospace',
-      fontSize: 11,
+      fontSize: 10,  // Reduced from 11 to fit more content
       fill: 0xcccccc,
       align: 'left',
-      lineHeight: 16,
+      lineHeight: 14,  // Reduced from 16 for tighter spacing
     });
 
     this.debugText = new Text('', textStyle);
     this.debugText.x = this.padding;
     this.debugText.y = this.padding + 30;
+
+    // Create a mask to clip content that extends beyond panel
+    const maskGraphics = new Graphics();
+    maskGraphics.beginFill(0xffffff);
+    maskGraphics.drawRect(
+      this.padding,
+      this.padding + 25,
+      this.panelWidth - 2 * this.padding,
+      this.panelHeight - 2 * this.padding - 25
+    );
+    maskGraphics.endFill();
+    this.container.addChild(maskGraphics);
+    this.debugText.mask = maskGraphics;
 
     this.container.addChild(this.debugText);
   }

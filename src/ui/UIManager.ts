@@ -17,6 +17,8 @@ import { StatusPanel } from './StatusPanel';
 import { MiniMap } from './MiniMap';
 import { DebugPanel } from './DebugPanel';
 import { ControlsOverlay } from './ControlsOverlay';
+import { EmbeddingMetricsPanel } from './EmbeddingMetricsPanel';
+import { EmbeddingVisualizationPanel } from './EmbeddingVisualizationPanel';
 import { Agent } from '../agent/Agent';
 import { TimeManager } from '../core/TimeManager';
 import { Camera } from '../rendering/Camera';
@@ -36,6 +38,8 @@ export class UIManager {
   private miniMap!: MiniMap;
   private debugPanel!: DebugPanel;
   private controlsOverlay!: ControlsOverlay;
+  private embeddingMetricsPanel!: EmbeddingMetricsPanel;
+  private embeddingVisualizationPanel!: EmbeddingVisualizationPanel;
 
   // Screen dimensions
   private screenWidth: number;
@@ -92,6 +96,14 @@ export class UIManager {
     this.controlsOverlay = new ControlsOverlay(this.uiContainer);
     await this.controlsOverlay.init();
 
+    // Create embedding metrics panel (left-center, initially hidden)
+    this.embeddingMetricsPanel = new EmbeddingMetricsPanel(this.uiContainer, this.agent);
+    await this.embeddingMetricsPanel.init();
+
+    // Create embedding visualization panel (right-center, initially hidden)
+    this.embeddingVisualizationPanel = new EmbeddingVisualizationPanel(this.uiContainer, this.agent);
+    await this.embeddingVisualizationPanel.init();
+
     // Position all UI elements
     this.positionUIElements();
 
@@ -120,6 +132,16 @@ export class UIManager {
     const debugY = padding;
     this.debugPanel.setPosition(debugX, debugY);
 
+    // Embedding Metrics Panel - Left Center
+    const embeddingX = padding;
+    const embeddingY = (this.screenHeight - this.embeddingMetricsPanel.getHeight()) / 2;
+    this.embeddingMetricsPanel.setPosition(embeddingX, embeddingY);
+
+    // Embedding Visualization Panel - Right Center
+    const vizX = this.screenWidth - this.embeddingVisualizationPanel.getWidth() - padding;
+    const vizY = (this.screenHeight - this.embeddingVisualizationPanel.getHeight()) / 2;
+    this.embeddingVisualizationPanel.setPosition(vizX, vizY);
+
     // Controls Overlay - Centered
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
 
@@ -141,12 +163,22 @@ export class UIManager {
           // Toggle controls overlay
           this.controlsOverlay.toggle();
           break;
+
+        case 'e':
+          // Toggle embedding metrics panel
+          this.embeddingMetricsPanel.toggle();
+          break;
+
+        case 'm':
+          // Toggle embedding visualization panel
+          this.embeddingVisualizationPanel.toggle();
+          break;
       }
     };
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz)');
   }
 
   /**
@@ -162,6 +194,16 @@ export class UIManager {
     // Update debug panel (only if visible for performance)
     if (this.debugPanel.isVisible()) {
       this.debugPanel.update(deltaTime);
+    }
+
+    // Update embedding metrics panel (only if visible for performance)
+    if (this.embeddingMetricsPanel.isVisible()) {
+      this.embeddingMetricsPanel.update(deltaTime);
+    }
+
+    // Update embedding visualization panel (only if visible for performance)
+    if (this.embeddingVisualizationPanel.isVisible()) {
+      this.embeddingVisualizationPanel.update(deltaTime);
     }
 
     // Update controls overlay (for fade animations)

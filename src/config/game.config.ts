@@ -192,6 +192,41 @@ export const VISUAL_CONFIG: VisualConfig = {
 };
 
 // ============================================
+// Memory System Configuration (Week 2)
+// ============================================
+export const MEMORY_CONFIG = {
+  // Observation generation
+  observationFrequency: 'on_change', // 'every_tick' | 'every_second' | 'on_change'
+  observationCooldown: 2000, // ms between similar observations
+  maxMemoriesStored: 10000, // Prevent memory overflow
+
+  // Retrieval parameters
+  retrievalTopK: 10, // Return top 10 memories for queries
+  recencyDecayFactor: 0.99, // How fast recency score decays (per hour)
+
+  // Three-factor retrieval weights (must sum to meaningful values)
+  importanceWeight: 1.0, // Weight for importance score (1-10)
+  recencyWeight: 1.0, // Weight for recency score
+  relevanceWeight: 1.0, // Weight for semantic similarity
+
+  // Embedding configuration
+  embeddingModel: 'voyage-2', // Anthropic embedding model
+  embeddingDimension: 1024, // Voyage-2 dimension
+  embeddingBatchSize: 10, // Batch embed multiple memories
+
+  // Performance optimization
+  enableEmbeddingCache: true,
+  maxCachedEmbeddings: 1000,
+  pruneThreshold: 0.9, // When to start pruning (90% of max)
+
+  // Reflection system (Week 2, Days 3-4)
+  reflectionEnabled: false, // Enable in Days 3-4
+  reflectionInterval: 7200, // Every 2 hours game time
+  reflectionImportanceThreshold: 7, // Only reflect on important events
+  maxReflectionsPerCycle: 3,
+};
+
+// ============================================
 // Resource Spawn Configuration
 // ============================================
 export const RESOURCE_CONFIG = {

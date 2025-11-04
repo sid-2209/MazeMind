@@ -27,7 +27,7 @@ export class ControlsOverlay {
   // Configuration
   private padding = 20;
   private panelWidth = 400;
-  private panelHeight = 480;
+  private panelHeight = 620;  // Increased to 620px to ensure all categories and controls are fully visible
 
   // Visible state
   private visible = false;
@@ -73,6 +73,8 @@ export class ControlsOverlay {
       title: 'DEBUG & HELP',
       controls: [
         { key: 'I', description: 'Toggle debug panel' },
+        { key: 'E', description: 'Toggle embedding metrics' },
+        { key: 'M', description: 'Toggle memory visualization' },
         { key: 'H', description: 'Toggle this help' },
       ],
     },

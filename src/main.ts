@@ -41,10 +41,13 @@ async function start() {
  */
 function displayControls(): void {
   console.log('🎮 Controls:');
-  console.log('   WASD / Arrow Keys: Move Arth (Fixed camera view)');
+  console.log('   WASD / Arrow Keys: Move Arth (Manual mode)');
   console.log('   Mouse Wheel: Zoom in/out');
   console.log('   Home: Reset camera');
   console.log('   Space: Pause/Resume');
+  console.log('   A: Toggle Autonomous/Manual mode');
+  console.log('   L: Cycle LLM Provider (Heuristic/Ollama/Anthropic)');
+  console.log('   I: Show debug info');
   console.log('   V / B: Cycle view modes');
   console.log('   T: Skip to next time period');
   console.log('   [ / ]: Slow down / Speed up time');
@@ -84,9 +87,24 @@ function setupUI(): void {
         🖱️ Mouse Wheel: Zoom<br>
         🏠 Home: Reset Camera<br>
         ⏸️ Space: Pause<br>
+        🤖 A: Autonomous Mode<br>
+        🔄 L: Switch LLM<br>
+        🔍 I: Debug Info<br>
+        🧠 E: Embedding Metrics<br>
+        📊 M: Memory Viz<br>
+        🎯 H: Help/Controls<br>
         ⏰ T: Skip Time<br>
         ⏩ [ / ]: Time Speed<br>
         🔄 R: New Maze
+      </div>
+      <div id="mode-info" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
+        <strong>Mode:</strong><br>
+        <span id="mode-display">🎮 Manual</span>
+      </div>
+      <div id="llm-info" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
+        <strong>LLM Provider:</strong><br>
+        <span id="llm-provider-display">🧮 Heuristic</span><br>
+        <small id="llm-model-display" style="color: #888888;">Pathfinding</small>
       </div>
       <div id="time-info" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>Time:</strong><br>
@@ -226,6 +244,63 @@ function updateUI(): void {
       };
 
       viewModeDisplay.style.color = modeColors[mode] || '#00ff00';
+    }
+  }
+
+  // Update autonomous mode info (NEW in Week 2)
+  const modeDisplay = document.getElementById('mode-display');
+  if (modeDisplay) {
+    const isAutonomous = game.isAutonomous();
+    if (isAutonomous) {
+      modeDisplay.textContent = '🤖 Autonomous';
+      modeDisplay.style.color = '#00ff00';
+    } else {
+      modeDisplay.textContent = '🎮 Manual';
+      modeDisplay.style.color = '#888888';
+    }
+  }
+
+  // Update LLM provider info (NEW in Week 2)
+  const agentForLLM = game.getAgent();
+  if (agentForLLM) {
+    const llmService = agentForLLM.getLLMService();
+    if (llmService) {
+      const providerDisplay = document.getElementById('llm-provider-display');
+      const modelDisplay = document.getElementById('llm-model-display');
+
+      if (providerDisplay) {
+        const provider = llmService.getCurrentProvider();
+        const providerIcons: { [key: string]: string } = {
+          'heuristic': '🧮',
+          'ollama': '🦙',
+          'anthropic': '🤖'
+        };
+
+        const providerNames: { [key: string]: string } = {
+          'heuristic': 'Heuristic',
+          'ollama': 'Ollama',
+          'anthropic': 'Anthropic'
+        };
+
+        const icon = providerIcons[provider] || '🧮';
+        const name = providerNames[provider] || provider;
+        providerDisplay.textContent = `${icon} ${name}`;
+
+        // Color code based on provider
+        const providerColors: { [key: string]: string } = {
+          'heuristic': '#888888',
+          'ollama': '#00aaff',
+          'anthropic': '#ff00ff'
+        };
+
+        providerDisplay.style.color = providerColors[provider] || '#00ff00';
+      }
+
+      if (modelDisplay) {
+        const model = llmService.getCurrentModel();
+        modelDisplay.textContent = model;
+        modelDisplay.style.color = '#888888';
+      }
     }
   }
 }

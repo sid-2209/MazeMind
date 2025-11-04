@@ -23,6 +23,7 @@ import { TimeManager } from './TimeManager';
 import { Agent } from '../agent/Agent';
 import { AgentRenderer } from '../agent/AgentRenderer';
 import { AgentController } from '../agent/AgentController';
+import { AutonomousController } from '../agent/AutonomousController'; // NEW in Days 3-4
 import { ViewModeManager } from '../ui/ViewModeManager';
 import { UIManager } from '../ui/UIManager';
 
@@ -39,11 +40,13 @@ export class Game {
   private agent: Agent | null = null;
   private agentRenderer: AgentRenderer | null = null;
   private agentController: AgentController | null = null;
+  private autonomousController: AutonomousController | null = null; // NEW in Days 3-4
 
   // Game state
   private maze: Maze | null = null;
   private isRunning: boolean = false;
   private isPaused: boolean = false;
+  private isAutonomousMode: boolean = false; // NEW in Days 3-4 - toggle between manual/AI
 
   // Configuration
   private config: GameConfig;
@@ -183,6 +186,49 @@ export class Game {
       this.renderer.camera
     );
 
+    // Initialize retrieval system with LLM provider configuration
+    const apiKey = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
+    const llmProvider = (import.meta as any).env?.VITE_LLM_PROVIDER || 'heuristic';
+    const ollamaUrl = (import.meta as any).env?.VITE_OLLAMA_URL || 'http://localhost:11434';
+    const ollamaModel = (import.meta as any).env?.VITE_OLLAMA_MODEL || 'llama3.2:3b-instruct-q4_K_M';
+
+    // Embedding provider configuration (Week 2, Days 1-2: Real semantic embeddings)
+    const embeddingProvider = (import.meta as any).env?.VITE_EMBEDDING_PROVIDER || 'openai';
+    const openaiApiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY;
+    const voyageApiKey = (import.meta as any).env?.VITE_VOYAGE_API_KEY;
+
+    this.agent.initializeRetrieval(
+      apiKey && apiKey !== 'sk-ant-your-key-here' ? apiKey : undefined,
+      llmProvider,
+      { url: ollamaUrl, model: ollamaModel },
+      {
+        provider: embeddingProvider,
+        openaiApiKey: openaiApiKey && openaiApiKey !== 'your-openai-api-key-here' ? openaiApiKey : undefined,
+        voyageApiKey: voyageApiKey && voyageApiKey !== 'your-voyage-api-key-here' ? voyageApiKey : undefined,
+      }
+    );
+
+    console.log(`🔍 Memory retrieval system initialized`);
+    console.log(`🤖 LLM Provider: ${llmProvider}`);
+    console.log(`🧠 Embedding Provider: ${embeddingProvider}`);
+
+    // Initialize autonomous controller (NEW in Days 3-4)
+    const decisionMaker = this.agent.getDecisionMaker();
+    if (decisionMaker) {
+      this.autonomousController = new AutonomousController(
+        this.agent,
+        decisionMaker,
+        {
+          decisionInterval: 3.0,
+          enableEmergencyOverride: true,
+          enableLogging: true,
+        }
+      );
+      // Start in manual mode by default
+      this.autonomousController.setEnabled(false);
+      console.log('🤖 Autonomous controller initialized (manual mode)');
+    }
+
     console.log('✅ Agent initialized');
   }
 
@@ -287,11 +333,23 @@ export class Game {
         case 'B':
           this.viewModeManager?.previousMode();
           break;
+        // Autonomous mode toggle (NEW in Days 3-4)
+        case 'a':
+        case 'A':
+          this.toggleAutonomousMode();
+          break;
+        // LLM provider switching (NEW: Ollama integration)
+        case 'l':
+        case 'L':
+          this.cycleLLMProvider();
+          break;
       }
     });
 
     console.log('   Controls:');
-    console.log('     - WASD/Arrows: Move agent');
+    console.log('     - WASD/Arrows: Move agent (manual mode)');
+    console.log('     - A: Toggle autonomous/manual mode');
+    console.log('     - L: Cycle LLM provider (Heuristic → Ollama → Anthropic)');
     console.log('     - Mouse wheel: Zoom');
     console.log('     - V: Next view mode');
     console.log('     - B: Previous view mode');
@@ -337,8 +395,14 @@ export class Game {
     }
 
     // Update agent
-    if (this.agent && this.agentController && this.agentRenderer) {
-      this.agentController.update(deltaTime);
+    if (this.agent && this.agentRenderer) {
+      // Update appropriate controller based on mode (NEW in Days 3-4)
+      if (this.isAutonomousMode && this.autonomousController) {
+        this.autonomousController.update(deltaTime);
+      } else if (this.agentController) {
+        this.agentController.update(deltaTime);
+      }
+
       this.agent.update(deltaTime);
       this.agentRenderer.update(deltaTime);
     }
@@ -384,6 +448,67 @@ export class Game {
   }
 
   /**
+   * Toggle between manual and autonomous mode (NEW in Days 3-4)
+   */
+  private toggleAutonomousMode(): void {
+    if (!this.autonomousController) {
+      console.warn('⚠️  Autonomous controller not initialized');
+      return;
+    }
+
+    this.isAutonomousMode = !this.isAutonomousMode;
+
+    if (this.isAutonomousMode) {
+      // Switching to autonomous mode
+      if (this.agentController) {
+        this.agentController.setEnabled(false);
+      }
+      this.autonomousController.setEnabled(true);
+      console.log('🤖 AUTONOMOUS MODE: AI is now controlling the agent');
+      console.log('   The agent will make decisions based on memories and observations');
+      console.log('   Press A again to return to manual control');
+    } else {
+      // Switching to manual mode
+      this.autonomousController.setEnabled(false);
+      if (this.agentController) {
+        this.agentController.setEnabled(true);
+      }
+      console.log('🎮 MANUAL MODE: You are now controlling the agent');
+      console.log('   Use WASD or arrow keys to move');
+      console.log('   Press A to enable autonomous mode');
+    }
+  }
+
+  /**
+   * Cycle through LLM providers (NEW: Ollama integration)
+   */
+  private async cycleLLMProvider(): Promise<void> {
+    const llmService = this.agent?.getLLMService();
+    if (!llmService) {
+      console.warn('⚠️  LLM service not initialized');
+      return;
+    }
+
+    const oldProvider = llmService.getCurrentProvider();
+    const newProvider = await llmService.cycleProvider();
+    const model = llmService.getCurrentModel();
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🔄 LLM Provider switched:`);
+    console.log(`   From: ${oldProvider}`);
+    console.log(`   To: ${newProvider}`);
+    console.log(`   Model: ${model}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // Show available providers
+    const status = llmService.getProviderStatus();
+    console.log('Available providers:');
+    console.log(`   Heuristic: ✅ Always available`);
+    console.log(`   Ollama: ${status.ollama ? '✅ Available' : '❌ Not available'}`);
+    console.log(`   Anthropic: ${status.anthropic ? '✅ Available' : '❌ Not available'}`);
+  }
+
+  /**
    * Get current FPS
    */
   getFPS(): number {
@@ -423,6 +548,13 @@ export class Game {
    */
   getFogOfWar() {
     return this.renderer?.getFogOfWar();
+  }
+
+  /**
+   * Get autonomous mode status (NEW in Week 2)
+   */
+  isAutonomous(): boolean {
+    return this.isAutonomousMode;
   }
 
   /**
