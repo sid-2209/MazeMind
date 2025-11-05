@@ -30,8 +30,15 @@ import { StressManager } from '../systems/StressManager'; // Week 3
 import { Item, getItemDescription, getItemName } from '../entities/Item'; // Week 3
 import { PlanningSystem } from '../systems/PlanningSystem'; // Week 5
 import { DailyPlan, ActionPlan, PlanningContext } from '../types/planning'; // Week 5
+import { SocialMemory } from './SocialMemory'; // Week 6
+import { v4 as uuidv4 } from 'uuid';
 
 export class Agent {
+  // Identity (Week 6 - Multi-agent support)
+  private id: string = uuidv4();
+  private agentName: string = 'Arth';
+  private agentColor: number = 0x4CAF50; // Default green
+
   // State
   private state: AgentState;
 
@@ -61,6 +68,9 @@ export class Agent {
 
   // Planning system (Week 5)
   private planningSystem: PlanningSystem | null = null;
+
+  // Social memory system (Week 6)
+  private socialMemory!: SocialMemory;
 
   // Survival systems (Week 3)
   private resourceManager: ResourceManager;
@@ -412,13 +422,6 @@ export class Agent {
     return { ...this.state };
   }
   
-  /**
-   * Get agent name
-   */
-  getName(): string {
-    return this.state.name;
-  }
-  
   // ============================================
   // Stats (Week 2+)
   // ============================================
@@ -525,6 +528,10 @@ export class Agent {
       this.memoryStream
     );
     console.log('📋 PlanningSystem initialized');
+
+    // Initialize SocialMemory (Week 6)
+    this.socialMemory = new SocialMemory(this.id);
+    console.log('🤝 SocialMemory initialized');
   }
 
   /**
@@ -867,6 +874,53 @@ export class Agent {
    */
   getStressLevel(): number {
     return this.stressManager.getStressLevel();
+  }
+
+  // ============================================
+  // Multi-Agent Support (Week 6)
+  // ============================================
+
+  /**
+   * Get unique agent ID
+   */
+  getId(): string {
+    return this.id;
+  }
+
+  /**
+   * Get agent name
+   */
+  getName(): string {
+    return this.agentName;
+  }
+
+  /**
+   * Set agent name
+   */
+  setName(name: string): void {
+    this.agentName = name;
+    this.state.name = name; // Also update state for backward compatibility
+  }
+
+  /**
+   * Get agent color
+   */
+  getColor(): number {
+    return this.agentColor;
+  }
+
+  /**
+   * Set agent color
+   */
+  setColor(color: number): void {
+    this.agentColor = color;
+  }
+
+  /**
+   * Get social memory system
+   */
+  getSocialMemory(): SocialMemory {
+    return this.socialMemory;
   }
 
   // ============================================

@@ -12,7 +12,7 @@
  * Week 1, Day 7+: Sprite sheet with detailed art
  */
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import { Agent } from './Agent';
 import { VisualConfig, AnimationState, Direction } from '../types';
 import { CONSTANTS } from '../config/game.config';
@@ -26,27 +26,28 @@ export class AgentRenderer {
   private bodyGraphics!: Graphics;
   private directionIndicator!: Graphics;
   private shadowGraphics!: Graphics;
+  private nameText!: Text; // Week 6: Name label
 
   // Animation state
   private animationState: AnimationState = AnimationState.IDLE;
   private animationTime: number = 0;
-  
+
   // Configuration
   private readonly SPRITE_SIZE: number;
-  private readonly SPRITE_COLOR: number;
+  private readonly SPRITE_COLOR: number; // Week 6: Can be customized per agent
   private readonly ANIMATION_SPEED = {
     idle: 1.0,    // 1 second per cycle
     walk: 2.0,    // 2 cycles per second (faster)
   };
-  
-  constructor(container: Container, agent: Agent, config: VisualConfig) {
+
+  constructor(container: Container, agent: Agent, config: VisualConfig, color?: number) {
     this.container = container;
     this.agent = agent;
 
     this.SPRITE_SIZE = config.tileSize * 0.8;
-    this.SPRITE_COLOR = CONSTANTS.COLORS.agent;
-    
-    console.log('🎨 AgentRenderer created');
+    this.SPRITE_COLOR = color !== undefined ? color : CONSTANTS.COLORS.agent; // Week 6: Use custom color if provided
+
+    console.log(`🎨 AgentRenderer created for ${agent.getName()} with color ${this.SPRITE_COLOR.toString(16)}`);
   }
   
   /**
@@ -54,21 +55,22 @@ export class AgentRenderer {
    */
   async init(): Promise<void> {
     console.log('🎨 Initializing agent renderer...');
-    
+
     // Create sprite container
     this.sprite = new Container();
-    
+
     // Create sprite components
     this.createShadow();
     this.createBody();
     this.createDirectionIndicator();
-    
+    this.createNameLabel(); // Week 6: Add name label
+
     // Add sprite to world container
     this.container.addChild(this.sprite);
-    
+
     // Set initial position
     this.updatePosition();
-    
+
     console.log('   Agent sprite created');
   }
   
@@ -139,7 +141,28 @@ export class AgentRenderer {
 
     this.sprite.addChild(this.directionIndicator);
   }
-  
+
+  /**
+   * Create name label above agent (Week 6)
+   */
+  private createNameLabel(): void {
+    const radius = this.SPRITE_SIZE / 2;
+
+    this.nameText = new Text(this.agent.getName(), {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 14,
+      fill: 0xffffff,
+      stroke: 0x000000,
+      strokeThickness: 4,
+      fontWeight: 'bold',
+    });
+
+    this.nameText.anchor.set(0.5, 0.5);
+    this.nameText.y = -radius - 18; // Position above agent
+
+    this.sprite.addChild(this.nameText);
+  }
+
   /**
    * Update every frame
    */

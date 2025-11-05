@@ -56,21 +56,41 @@ export class MazeGenerator {
     // Step 4: Add intentional dead ends
     this.addDeadEnds(config.deadEnds);
     
-    // Step 5: Place entrance and exit
-    const entrance = config.entrancePosition || this.findEntrancePosition();
-    const exit = config.exitPosition || this.findExitPosition(entrance);
-    
-    this.tiles[entrance.y][entrance.x].type = TileType.ENTRANCE;
+    // Step 5: Place entrance(s) and exit
+    const agentCount = config.agentCount || 1;
+    let entrances: Position[];
+    let exit: Position;
+
+    if (agentCount > 1) {
+      // Multi-agent: Generate multiple entrances with fairness verification
+      const result = this.generateFairEntrances(agentCount);
+      entrances = result.entrances;
+      exit = result.exit;
+
+      // Mark all entrances
+      for (const entrance of entrances) {
+        this.tiles[entrance.y][entrance.x].type = TileType.ENTRANCE;
+      }
+    } else {
+      // Single agent: Use traditional entrance placement
+      const entrance = config.entrancePosition || this.findEntrancePosition();
+      exit = config.exitPosition || this.findExitPosition(entrance);
+      entrances = [entrance];
+      this.tiles[entrance.y][entrance.x].type = TileType.ENTRANCE;
+    }
+
     this.tiles[exit.y][exit.x].type = TileType.EXIT;
-    
-    console.log(`✅ Maze generated: ${entrance.x},${entrance.y} → ${exit.x},${exit.y}`);
-    
+
+    const entranceStr = entrances.map(e => `(${e.x},${e.y})`).join(', ');
+    console.log(`✅ Maze generated: ${entranceStr} → (${exit.x},${exit.y})`);
+
     // Step 6: Create and return Maze object
     return {
       width: this.width,
       height: this.height,
       tiles: this.tiles,
-      entrance,
+      entrance: entrances[0], // Primary entrance for backward compatibility
+      entrances, // All entrances (Week 6)
       exit,
       resources: [], // Resources added in Week 3
       seed,
@@ -369,5 +389,160 @@ export class MazeGenerator {
       const j = Math.floor(this.rng() * (i + 1));
       [array[i], array[j]] = [array[j], array[i]];
     }
+  }
+
+  // ============================================
+  // Multi-Entrance Fair Generation (Week 6, Days 6-7)
+  // ============================================
+
+  /**
+   * Generate fair multiple entrances with automatic strategy selection
+   */
+  private generateFairEntrances(agentCount: number): { entrances: Position[]; exit: Position } {
+    const maxAttempts = 10;
+    let bestResult: { entrances: Position[]; exit: Position; fairness: number } | null = null;
+
+    console.log(`🎯 Generating fair ${agentCount} entrances...`);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Try different strategies
+      const strategies = [
+        this.strategySymmetricSameEdge.bind(this),
+        this.strategyOppositeCorners.bind(this),
+        this.strategyDiagonal.bind(this),
+      ];
+
+      for (const strategy of strategies) {
+        const result = strategy(agentCount);
+        const fairness = this.evaluateFairness(result.entrances, result.exit);
+
+        if (!bestResult || fairness > bestResult.fairness) {
+          bestResult = { ...result, fairness };
+        }
+
+        // If fairness is excellent (>0.85), use it immediately
+        if (fairness > 0.85) {
+          console.log(`✅ Excellent fairness achieved: ${(fairness * 100).toFixed(1)}%`);
+          return result;
+        }
+      }
+    }
+
+    if (bestResult) {
+      console.log(`✅ Best fairness: ${(bestResult.fairness * 100).toFixed(1)}%`);
+      return { entrances: bestResult.entrances, exit: bestResult.exit };
+    }
+
+    // Fallback: Use simple symmetric placement
+    console.warn('⚠️  Using fallback entrance placement');
+    return this.strategySymmetricSameEdge(agentCount);
+  }
+
+  /**
+   * Strategy 1: Same edge, symmetric positions
+   */
+  private strategySymmetricSameEdge(agentCount: number): { entrances: Position[]; exit: Position } {
+    const entrances: Position[] = [];
+    const spacing = Math.floor(this.height / (agentCount + 1));
+
+    for (let i = 0; i < agentCount; i++) {
+      entrances.push({
+        x: 0,
+        y: spacing * (i + 1),
+      });
+    }
+
+    const exit = {
+      x: this.width - 1,
+      y: Math.floor(this.height / 2),
+    };
+
+    return { entrances, exit };
+  }
+
+  /**
+   * Strategy 2: Opposite corners
+   */
+  private strategyOppositeCorners(agentCount: number): { entrances: Position[]; exit: Position } {
+    const entrances: Position[] = [];
+
+    if (agentCount === 2) {
+      entrances.push({ x: 0, y: 0 });
+      entrances.push({ x: 0, y: this.height - 1 });
+    } else if (agentCount === 3) {
+      entrances.push({ x: 0, y: 0 });
+      entrances.push({ x: 0, y: this.height - 1 });
+      entrances.push({ x: 0, y: Math.floor(this.height / 2) });
+    }
+
+    const exit = {
+      x: this.width - 1,
+      y: Math.floor(this.height / 2),
+    };
+
+    return { entrances, exit };
+  }
+
+  /**
+   * Strategy 3: Diagonal placement
+   */
+  private strategyDiagonal(agentCount: number): { entrances: Position[]; exit: Position } {
+    const entrances: Position[] = [];
+
+    if (agentCount === 2) {
+      entrances.push({ x: 0, y: 0 });
+      entrances.push({ x: this.width - 1, y: this.height - 1 });
+    } else if (agentCount === 3) {
+      entrances.push({ x: 0, y: 0 });
+      entrances.push({ x: this.width - 1, y: this.height - 1 });
+      entrances.push({ x: Math.floor(this.width / 2), y: 0 });
+    }
+
+    const exit = {
+      x: Math.floor(this.width / 2),
+      y: Math.floor(this.height / 2),
+    };
+
+    return { entrances, exit };
+  }
+
+  /**
+   * Evaluate fairness of entrance placement (0-1 score)
+   */
+  private evaluateFairness(entrances: Position[], exit: Position): number {
+    const pathLengths: number[] = [];
+
+    // Calculate path length from each entrance to exit
+    for (const entrance of entrances) {
+      const length = this.estimatePathLength(entrance, exit);
+      pathLengths.push(length);
+    }
+
+    if (pathLengths.length === 0) return 0;
+
+    // Calculate variance
+    const avgLength = pathLengths.reduce((a, b) => a + b, 0) / pathLengths.length;
+    const maxDiff = Math.max(...pathLengths) - Math.min(...pathLengths);
+
+    // Fairness score: 1.0 if all paths equal, decreases with variance
+    // Allow up to 15% difference
+    const tolerance = avgLength * 0.15;
+    const fairness = maxDiff <= tolerance ? 1.0 : Math.max(0, 1 - (maxDiff - tolerance) / avgLength);
+
+    return fairness;
+  }
+
+  /**
+   * Estimate path length using Manhattan distance (simplified A*)
+   * This is a heuristic - actual path may be longer due to walls
+   */
+  private estimatePathLength(from: Position, to: Position): number {
+    // Manhattan distance as base estimate
+    const manhattan = Math.abs(to.x - from.x) + Math.abs(to.y - from.y);
+
+    // Add complexity factor for maze (paths are typically 30-50% longer than Manhattan)
+    const complexityMultiplier = 1.4;
+
+    return manhattan * complexityMultiplier;
   }
 }

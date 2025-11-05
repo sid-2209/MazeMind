@@ -95,6 +95,7 @@ export interface MazeConfig {
   seed?: string;
   entrancePosition?: Position;
   exitPosition?: Position;
+  agentCount?: number; // Number of agents (Week 6, determines number of entrances)
 }
 
 export interface AgentConfig {
@@ -306,7 +307,8 @@ export interface Maze {
   width: number;
   height: number;
   tiles: Tile[][];
-  entrance: Position;
+  entrance: Position; // Primary entrance (backward compatibility)
+  entrances?: Position[]; // Multiple entrances (Week 6)
   exit: Position;
   resources: Resource[];
   seed: string;
@@ -458,3 +460,9 @@ export type AsyncCallback<T = void> = () => Promise<T>;
 // ============================================
 
 export * from './planning';
+
+// ============================================
+// Multi-Agent Types (Week 6)
+// ============================================
+
+export * from './multi-agent';
