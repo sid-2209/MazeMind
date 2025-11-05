@@ -22,6 +22,7 @@ import { SurvivalPanel } from './SurvivalPanel'; // Week 3
 import { CurrentRunPanel } from './CurrentRunPanel'; // Week 4
 import { PlanningPanel } from './PlanningPanel'; // Week 5
 import { MultiAgentPanel } from './MultiAgentPanel'; // Week 6
+import { ConversationPanel } from './ConversationPanel'; // Week 7
 import { Agent } from '../agent/Agent';
 import { TimeManager } from '../core/TimeManager';
 import { Camera } from '../rendering/Camera';
@@ -29,6 +30,7 @@ import { FogOfWar } from '../rendering/FogOfWar';
 import { Maze } from '../types';
 import { DataCollector } from '../systems/DataCollector'; // Week 4
 import { AgentManager } from '../systems/AgentManager'; // Week 6
+import { ConversationManager } from '../systems/ConversationManager'; // Week 7
 
 export class UIManager {
   private uiContainer: Container;
@@ -48,6 +50,7 @@ export class UIManager {
   private currentRunPanel!: CurrentRunPanel; // Week 4
   private planningPanel!: PlanningPanel; // Week 5
   private multiAgentPanel!: MultiAgentPanel; // Week 6
+  private conversationPanel!: ConversationPanel; // Week 7
 
   // Screen dimensions
   private screenWidth: number;
@@ -124,6 +127,10 @@ export class UIManager {
     this.multiAgentPanel = new MultiAgentPanel(this.uiContainer);
     await this.multiAgentPanel.init();
 
+    // Create conversation panel (bottom-center, initially hidden) - Week 7
+    this.conversationPanel = new ConversationPanel(this.uiContainer);
+    await this.conversationPanel.init();
+
     // Position all UI elements
     this.positionUIElements();
 
@@ -172,8 +179,8 @@ export class UIManager {
   private positionUIElements(): void {
     const padding = 16;
 
-    // Survival Panel - Top Left (replaces StatusPanel)
-    this.survivalPanel.setPosition(padding, padding);
+    // Survival Panel - Top Left corner (no padding for tight alignment)
+    this.survivalPanel.setPosition(0, 0);
 
     // MiniMap - Bottom Right
     const miniMapX = this.screenWidth - this.miniMap.getWidth() - padding;
@@ -195,17 +202,9 @@ export class UIManager {
     const vizY = (this.screenHeight - this.embeddingVisualizationPanel.getHeight()) / 2;
     this.embeddingVisualizationPanel.setPosition(vizX, vizY);
 
-    // Survival Panel - Left Bottom (Week 3)
-    const survivalX = padding;
-    const survivalY = this.screenHeight - this.survivalPanel.getHeight() - padding;
-    this.survivalPanel.setPosition(survivalX, survivalY);
-
-    // Planning Panel - Left Bottom, above survival panel (Week 5)
+    // Planning Panel - Left Bottom (Week 5)
     const planningX = padding;
-    const planningY = this.screenHeight -
-                      this.survivalPanel.getHeight() -
-                      this.planningPanel.getHeight() -
-                      padding * 2;
+    const planningY = this.screenHeight - this.planningPanel.getHeight() - padding;
     this.planningPanel.setPosition(planningX, planningY);
 
     // Current Run Panel - Top Right (Week 4)
@@ -217,6 +216,11 @@ export class UIManager {
     const multiAgentX = (this.screenWidth - this.multiAgentPanel.getWidth()) / 2;
     const multiAgentY = padding;
     this.multiAgentPanel.setPosition(multiAgentX, multiAgentY);
+
+    // Conversation Panel - Bottom Center (Week 7)
+    const conversationX = (this.screenWidth - this.conversationPanel.getWidth()) / 2;
+    const conversationY = this.screenHeight - this.conversationPanel.getHeight() - padding;
+    this.conversationPanel.setPosition(conversationX, conversationY);
 
     // Controls Overlay - Centered
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
@@ -269,12 +273,17 @@ export class UIManager {
           // Toggle multi-agent panel (Week 6) - Changed to 'Z' for easy access
           this.multiAgentPanel.toggle();
           break;
+
+        case 'd':
+          // Toggle conversation panel (Week 7) - 'D' for Dialogue
+          this.conversationPanel.toggle();
+          break;
       }
     };
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, C: current run, P: planning, Z: multi-agent)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, C: current run, P: planning, Z: multi-agent, D: dialogue)');
   }
 
   /**
@@ -298,6 +307,11 @@ export class UIManager {
     // Update multi-agent panel (Week 6, only if visible for performance)
     if (this.multiAgentPanel.isVisible()) {
       this.multiAgentPanel.update(deltaTime, gameTime);
+    }
+
+    // Update conversation panel (Week 7, only if visible for performance)
+    if (this.conversationPanel.isVisible()) {
+      this.conversationPanel.update(deltaTime, gameTime);
     }
 
     // Update debug panel (only if visible for performance)
@@ -346,6 +360,13 @@ export class UIManager {
     this.multiAgentPanel.setAgentManager(manager);
     this.survivalPanel.setAgentManager(manager);
     this.miniMap.setAgentManager(manager); // Week 6: Wire to minimap for entrance visualization
+  }
+
+  /**
+   * Set conversation manager for dialogue support (Week 7)
+   */
+  setConversationManager(manager: ConversationManager | null): void {
+    this.conversationPanel.setConversationManager(manager);
   }
 
   /**

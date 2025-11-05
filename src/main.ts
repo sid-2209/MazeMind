@@ -41,7 +41,7 @@ async function start() {
  */
 function displayControls(): void {
   console.log('🎮 Controls:');
-  console.log('   WASD / Arrow Keys: Move agents (Manual mode)');
+  console.log('   Arrow Keys: Move agents (Manual mode)');
   console.log('   Mouse Wheel: Zoom in/out');
   console.log('   Home: Reset camera');
   console.log('   Space: Pause/Resume');
@@ -54,10 +54,11 @@ function displayControls(): void {
   console.log('   M: Toggle Memory Visualization');
   console.log('   P: Toggle Planning Panel');
   console.log('   C: Toggle Current Run Panel');
+  console.log('   D: Toggle Dialogue Panel');
   console.log('   V / B: Cycle view modes');
   console.log('   T: Skip to next time period');
   console.log('   [ / ]: Slow down / Speed up time');
-  console.log('   1 / 2 / 3: Set agent count (then press R to regenerate)');
+  console.log('   R: Regenerate maze');
   console.log('\n');
 }
 
@@ -89,7 +90,7 @@ function setupUI(): void {
       </div>
       <div style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>Controls:</strong><br>
-        🎮 WASD / Arrows: Move<br>
+        🎮 Arrows: Move<br>
         🖱️ Mouse Wheel: Zoom<br>
         🏠 Home: Reset Camera<br>
         ⏸️ Space: Pause<br>
@@ -102,10 +103,10 @@ function setupUI(): void {
         📊 M: Memory Viz<br>
         📋 P: Planning Panel<br>
         📈 C: Current Run Panel<br>
+        💬 D: Dialogue Panel<br>
         🎯 H: Help/Controls<br>
         ⏰ T: Skip Time<br>
         ⏩ [ / ]: Time Speed<br>
-        👥 1/2/3: Agent Count<br>
         🔄 R: New Maze<br>
         🎨 V / B: View Modes
       </div>
@@ -133,7 +134,7 @@ function setupUI(): void {
       </div>
       <div id="multi-agent-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>👥 Agents:</strong><br>
-        <span id="agent-count-display">2 active</span><br>
+        <span id="agent-count-display">3 active</span><br>
         <small style="color: #888888;">Press Z to view</small>
       </div>
       <div id="view-mode-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
@@ -368,23 +369,6 @@ function displayError(error: any): void {
  * Setup keyboard shortcuts
  */
 window.addEventListener('keydown', (e: KeyboardEvent) => {
-  // Set agent count with number keys 1-3 (Week 6)
-  if (e.key === '1') {
-    console.log('👤 Setting agent count to 1...');
-    game.setAgentCount(1);
-    console.log('   Press R to regenerate maze with 1 agent');
-  }
-  if (e.key === '2') {
-    console.log('👥 Setting agent count to 2...');
-    game.setAgentCount(2);
-    console.log('   Press R to regenerate maze with 2 agents');
-  }
-  if (e.key === '3') {
-    console.log('👥👥 Setting agent count to 3...');
-    game.setAgentCount(3);
-    console.log('   Press R to regenerate maze with 3 agents');
-  }
-
   // Regenerate maze with R key
   if (e.key === 'r' || e.key === 'R') {
     console.log('🔄 Regenerating maze...');

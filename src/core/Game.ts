@@ -35,6 +35,7 @@ import { ExportManager } from '../utils/ExportManager'; // Week 4
 import { AgentManager } from '../systems/AgentManager'; // Week 6
 import { MultiAgentRenderer } from '../rendering/MultiAgentRenderer'; // Week 6
 import { PREDEFINED_AGENTS } from '../types/multi-agent'; // Week 6
+import { ConversationManager } from '../systems/ConversationManager'; // Week 7
 
 export class Game {
   // Core systems
@@ -54,9 +55,12 @@ export class Game {
   // Multi-agent systems (Week 6)
   private agentManager: AgentManager | null = null;
   private multiAgentRenderer: MultiAgentRenderer | null = null;
-  private selectedAgentCount: number = 2; // Default: 2 agents for multi-agent mode
+  private selectedAgentCount: number = 3; // Default: All 3 agents (Arth, Vani, Kael)
   private agentControllers: Map<string, AgentController> = new Map();
   private autonomousControllers: Map<string, AutonomousController> = new Map();
+
+  // Conversation system (Week 7)
+  private conversationManager: ConversationManager | null = null;
 
   // Survival systems (Week 3)
   private itemGenerator: ItemGenerator | null = null;
@@ -330,6 +334,12 @@ export class Game {
     this.dataCollector = new DataCollector(this.agent!, this.maze, this.maze.seed);
     console.log('📊 Data collector initialized');
 
+    // Initialize conversation manager (Week 7)
+    if (this.agentManager) {
+      this.conversationManager = new ConversationManager(this.agentManager);
+      console.log('💬 Conversation manager initialized');
+    }
+
     console.log('✅ All agents initialized');
   }
 
@@ -395,6 +405,11 @@ export class Game {
     // Wire agent manager to UI (Week 6)
     if (this.agentManager) {
       this.uiManager.setAgentManager(this.agentManager);
+    }
+
+    // Wire conversation manager to UI (Week 7)
+    if (this.conversationManager) {
+      this.uiManager.setConversationManager(this.conversationManager);
     }
 
     console.log('✅ UI system initialized');
@@ -577,6 +592,11 @@ export class Game {
     // Update data collector (Week 4)
     if (this.dataCollector) {
       this.dataCollector.update(this.gameTime);
+    }
+
+    // Update conversation manager (Week 7)
+    if (this.conversationManager) {
+      this.conversationManager.update(deltaTime, this.gameTime);
     }
 
     // Update view mode manager (Day 8)
@@ -969,5 +989,12 @@ export class Game {
    */
   getAllAgents(): Agent[] {
     return this.agentManager?.getAllAgents() || [];
+  }
+
+  /**
+   * Get conversation manager (Week 7)
+   */
+  getConversationManager(): ConversationManager | null {
+    return this.conversationManager;
   }
 }

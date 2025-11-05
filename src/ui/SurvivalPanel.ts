@@ -51,9 +51,9 @@ export class SurvivalPanel {
   private panelWidth = 300;
   private collapsedCardHeight = 50;
   private expandedCardHeight = 240;
-  private padding = 16;
-  private cardPadding = 12;
-  private barWidth = 250;
+  private padding = 8; // Reduced padding for tighter fit
+  private cardPadding = 10;
+  private barWidth = 260;
   private barHeight = 18;
   private barSpacing = 30;
 

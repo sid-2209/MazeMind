@@ -40,10 +40,10 @@ export class ControlsOverlay {
     {
       title: 'MOVEMENT',
       controls: [
-        { key: 'W/↑', description: 'Move North' },
-        { key: 'A/←', description: 'Move West' },
-        { key: 'S/↓', description: 'Move South' },
-        { key: 'D/→', description: 'Move East' },
+        { key: '↑', description: 'Move North' },
+        { key: '←', description: 'Move West' },
+        { key: '↓', description: 'Move South' },
+        { key: '→', description: 'Move East' },
       ],
     },
     {
@@ -75,7 +75,6 @@ export class ControlsOverlay {
         { key: 'A', description: 'Toggle Autonomous mode' },
         { key: 'Z', description: 'Toggle Multi-Agent panel' },
         { key: 'L', description: 'Cycle LLM provider' },
-        { key: '1/2/3', description: 'Set agent count (1-3)' },
       ],
     },
     {
@@ -85,6 +84,7 @@ export class ControlsOverlay {
         { key: 'S', description: 'Toggle survival panel' },
         { key: 'P', description: 'Toggle planning panel' },
         { key: 'C', description: 'Toggle current run panel' },
+        { key: 'D', description: 'Toggle dialogue panel' },
         { key: 'E', description: 'Toggle embedding metrics' },
         { key: 'M', description: 'Toggle memory viz' },
         { key: 'H', description: 'Toggle this help' },
