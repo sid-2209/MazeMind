@@ -22,9 +22,19 @@ export class MemoryStream {
   private memories: Memory[] = [];
   private maxMemories: number;
 
+  // Week 8: Callback for reflection system
+  private onMemoryCreatedCallback?: (memory: Memory) => void;
+
   constructor(maxMemories: number = 10000) {
     this.maxMemories = maxMemories;
     console.log(`🧠 MemoryStream initialized (max: ${maxMemories} memories)`);
+  }
+
+  /**
+   * Week 8: Set callback for when memories are created (for importance-sum triggering)
+   */
+  setOnMemoryCreated(callback: (memory: Memory) => void): void {
+    this.onMemoryCreatedCallback = callback;
   }
 
   /**
@@ -220,6 +230,11 @@ export class MemoryStream {
    */
   private addMemory(memory: Memory): void {
     this.memories.push(memory);
+
+    // Week 8: Notify reflection system of new memory (for importance-sum triggering)
+    if (this.onMemoryCreatedCallback) {
+      this.onMemoryCreatedCallback(memory);
+    }
 
     // If over capacity, prune least important old memories
     if (this.memories.length > this.maxMemories) {

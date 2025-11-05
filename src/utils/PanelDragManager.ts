@@ -72,13 +72,12 @@ export class PanelDragManager {
     // Load saved position
     this.loadPosition(container, fullConfig);
 
-    // Add visual drag handle
+    // Add visual drag handle (creates title bar and stores in dragState.dragHandle)
     if (fullConfig.showDragHandle) {
       this.createDragHandle(container, dragState, fullConfig);
+      // Setup drag handlers after title bar is created
+      this.setupDragHandlers(container, dragState, fullConfig);
     }
-
-    // Setup drag handlers
-    this.setupDragHandlers(container, dragState, fullConfig);
 
     // Set sortable children for z-index
     if (container.parent) {
@@ -88,91 +87,86 @@ export class PanelDragManager {
   }
 
   /**
-   * Create visual drag handle
+   * Create visible title bar drag handle
    */
   private createDragHandle(container: Container, dragState: DragState, config: Required<DragConfig>): void {
-    const dragHandle = new Graphics();
+    const titleBar = new Graphics();
 
-    // Small drag icon in top-right corner (6 dots in 2x3 grid)
-    const iconSize = 2;
-    const iconSpacing = 3;
-    const iconX = config.width - 18; // 18px from right edge
-    const iconY = 8; // 8px from top
+    // Create visible title bar background (32px height)
+    titleBar.beginFill(0x1a1a1a, 0.8);
+    titleBar.drawRoundedRect(0, 0, config.width, 32, 8);
+    titleBar.endFill();
 
-    // Draw 2x3 grid of dots
+    // Make title bar interactive for dragging
+    titleBar.eventMode = 'static' as any;
+    titleBar.cursor = 'grab';
+    titleBar.hitArea = {
+      contains: (x: number, y: number) => x >= 0 && x <= config.width && y >= 0 && y <= 32
+    } as any;
+
+    // Add panel name text
+    const panelName = config.id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const titleText = new (window as any).PIXI.Text(panelName, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: 12,
+      fill: 0x00ff00,
+      fontWeight: 'bold'
+    });
+    titleText.x = 10;
+    titleText.y = 10;
+    titleBar.addChild(titleText);
+
+    // Add drag indicator dots (6 dots in 2x3 grid, top-right)
+    const dotSize = 1.5;
+    const dotSpacing = 3;
+    const dotsStartX = config.width - 20;
+    const dotsStartY = 12;
+
     for (let row = 0; row < 2; row++) {
       for (let col = 0; col < 3; col++) {
-        dragHandle.beginFill(0x00ff00, 0.3);
-        dragHandle.drawCircle(
-          iconX + col * iconSpacing,
-          iconY + row * iconSpacing,
-          iconSize
+        titleBar.beginFill(0x00ff00, 0.4);
+        titleBar.drawCircle(
+          dotsStartX + col * dotSpacing,
+          dotsStartY + row * dotSpacing,
+          dotSize
         );
-        dragHandle.endFill();
+        titleBar.endFill();
       }
     }
 
-    dragHandle.interactive = false;
-    dragHandle.y = 0;
-    container.addChildAt(dragHandle, container.children.length); // Add on top
+    // Add title bar as first child (on top visually but behind in z-order)
+    container.addChildAt(titleBar, 0);
 
-    dragState.dragHandle = dragHandle;
+    // Store reference for cleanup
+    dragState.dragHandle = titleBar;
   }
 
   /**
-   * Setup drag event handlers - Professional implementation
+   * Setup drag event handlers with global event tracking
    */
   private setupDragHandlers(container: Container, dragState: DragState, config: Required<DragConfig>): void {
-    // Create invisible draggable background layer
-    const dragBackground = new Graphics();
-    dragBackground.beginFill(0x000000, 0.01); // Nearly invisible
-    dragBackground.drawRect(0, 0, config.width, config.height);
-    dragBackground.endFill();
-    dragBackground.interactive = true;
-    dragBackground.cursor = 'grab';
-    dragBackground.zIndex = -100; // Behind all content
+    // Get the title bar (created in createDragHandle)
+    const titleBar = dragState.dragHandle;
+    if (!titleBar) return;
 
-    // Add as first child (background layer)
-    container.addChildAt(dragBackground, 0);
-
-    // Enable interactive children for buttons, dropdowns, etc.
-    container.interactive = false; // Container itself doesn't capture events
+    // Enable interactive children for panel content
+    (container as any).eventMode = 'passive'; // Container doesn't capture events directly
     container.interactiveChildren = true;
 
-    // Track if we're dragging
-    let isDraggingActive = false;
-
-    // Pointer down on drag background - start drag
-    dragBackground.on('pointerdown', (event: any) => {
-      const position = event.data.global;
-      dragState.offsetX = position.x - container.x;
-      dragState.offsetY = position.y - container.y;
-      isDraggingActive = true;
-      dragState.isDragging = true;
-
-      // Change cursor
-      dragBackground.cursor = 'grabbing';
-
-      // Bring to front
-      this.bringToFront(container);
-
-      // Attach global move/up handlers for smooth dragging
-      const stage = container.parent;
-      if (stage) {
-        stage.interactive = true;
-        stage.on('pointermove', onPointerMove);
-        stage.on('pointerup', onPointerUp);
-        stage.on('pointerupoutside', onPointerUp);
+    // Get reference to stage for global event handling
+    const getStage = () => {
+      let current = container.parent;
+      while (current && current.parent) {
+        current = current.parent;
       }
+      return current;
+    };
 
-      event.stopPropagation();
-    });
+    // Event handlers (defined here to maintain closure over dragState)
+    const onDragMove = (event: any) => {
+      if (!dragState.isDragging) return;
 
-    // Global pointer move - smooth drag anywhere
-    const onPointerMove = (event: any) => {
-      if (!isDraggingActive) return;
-
-      const position = event.data.global;
+      const position = event.global;
       let newX = position.x - dragState.offsetX;
       let newY = position.y - dragState.offsetY;
 
@@ -196,34 +190,56 @@ export class PanelDragManager {
       container.y = newY;
     };
 
-    // Global pointer up - end drag
-    const onPointerUp = () => {
-      if (!isDraggingActive) return;
+    const onDragEnd = () => {
+      if (!dragState.isDragging) return;
 
-      isDraggingActive = false;
       dragState.isDragging = false;
-      dragBackground.cursor = 'grab';
+      titleBar.cursor = 'grab';
 
-      // Remove global handlers
-      const stage = container.parent;
+      // Remove global event handlers
+      const stage = getStage();
       if (stage) {
-        stage.off('pointermove', onPointerMove);
-        stage.off('pointerup', onPointerUp);
-        stage.off('pointerupoutside', onPointerUp);
+        stage.off('globalpointermove', onDragMove);
+        stage.off('pointerup', onDragEnd);
+        stage.off('pointerupoutside', onDragEnd);
       }
 
       // Save position
       this.savePosition(container, config);
     };
 
-    // Click on drag background to bring to front
-    dragBackground.on('click', (event: any) => {
+    // Pointer down on title bar - start drag
+    titleBar.on('pointerdown', (event: any) => {
+      const position = event.global;
+      dragState.offsetX = position.x - container.x;
+      dragState.offsetY = position.y - container.y;
+      dragState.isDragging = true;
+
+      // Change cursor to grabbing
+      titleBar.cursor = 'grabbing';
+
+      // Bring panel to front
       this.bringToFront(container);
+
+      // Attach global event handlers for smooth continuous tracking
+      const stage = getStage();
+      if (stage) {
+        // Use globalpointermove for continuous tracking (PixiJS v8)
+        stage.on('globalpointermove', onDragMove);
+        stage.on('pointerup', onDragEnd);
+        stage.on('pointerupoutside', onDragEnd);
+      }
+
       event.stopPropagation();
     });
 
-    // Store drag background reference for cleanup
-    dragState.dragHandle = dragBackground;
+    // Click on title bar to bring to front (without dragging)
+    titleBar.on('click', (event: any) => {
+      if (!dragState.isDragging) {
+        this.bringToFront(container);
+      }
+      event.stopPropagation();
+    });
   }
 
   /**

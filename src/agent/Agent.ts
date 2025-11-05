@@ -507,7 +507,7 @@ export class Agent {
     );
     console.log('🤖 DecisionMaker initialized');
 
-    // Initialize ReflectionSystem (NEW in Days 3-4)
+    // Initialize ReflectionSystem (NEW in Days 3-4, Enhanced Week 8)
     this.reflectionSystem = new ReflectionSystem(
       this,
       this.memoryStream,
@@ -517,9 +517,24 @@ export class Agent {
         reflectionInterval: 120,  // 2 minutes
         importanceThreshold: 5,
         maxMemoriesPerReflection: 30,
+      },
+      {
+        // Week 8: Enable enhanced reflection features
+        importanceSumThreshold: 150,  // From paper
+        enableImportanceSumTrigger: true,
+        questionsPerReflection: 3,
+        enableMetaReflections: true,
       }
     );
-    console.log('💭 ReflectionSystem initialized');
+    console.log('💭 ReflectionSystem initialized (Week 8 Enhanced)');
+
+    // Week 8: Wire up importance-sum callback
+    this.memoryStream.setOnMemoryCreated((memory) => {
+      if (this.reflectionSystem) {
+        this.reflectionSystem.onMemoryCreated(memory);
+      }
+    });
+    console.log('✨ Importance-sum triggering enabled');
 
     // Initialize PlanningSystem (Week 5)
     this.planningSystem = new PlanningSystem(
