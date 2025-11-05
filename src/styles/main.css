@@ -16,12 +16,12 @@ body {
   line-height: 1.6;
 }
 
-/* App container - offset for left control panel */
+/* App container - flush with left control panel for better space utilization */
 #app {
-  width: calc(100vw - 360px);  /* Exclude panel width (320px + 40px margin) */
+  width: calc(100vw - 340px);  /* Exclude panel width (320px + 20px margin) */
   min-height: 100vh;
-  padding: 20px;
-  margin-left: 360px;  /* Push canvas right of panel */
+  padding: 10px;
+  margin-left: 340px;  /* Push canvas right of panel with minimal gap */
 }
 
 /* Headings */

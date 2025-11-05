@@ -31,6 +31,7 @@ import { Maze } from '../types';
 import { DataCollector } from '../systems/DataCollector'; // Week 4
 import { AgentManager } from '../systems/AgentManager'; // Week 6
 import { ConversationManager } from '../systems/ConversationManager'; // Week 7
+import { PanelDragManager } from '../utils/PanelDragManager'; // UI Improvements
 
 export class UIManager {
   private uiContainer: Container;
@@ -56,6 +57,9 @@ export class UIManager {
   private screenWidth: number;
   private screenHeight: number;
 
+  // Drag manager for panels
+  private panelDragManager: PanelDragManager;
+
   // Keyboard listeners
   private keyboardListener: ((e: KeyboardEvent) => void) | null = null;
 
@@ -77,6 +81,12 @@ export class UIManager {
     this.fogOfWar = fogOfWar;
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
+
+    // Initialize drag manager
+    this.panelDragManager = new PanelDragManager();
+
+    // Enable sortable children for z-index management
+    this.uiContainer.sortableChildren = true;
   }
 
   /**
@@ -133,6 +143,9 @@ export class UIManager {
 
     // Position all UI elements
     this.positionUIElements();
+
+    // Make panels draggable (UI Improvements)
+    this.setupDraggablePanels();
 
     // Setup keyboard controls
     this.setupKeyboardControls();
@@ -226,6 +239,47 @@ export class UIManager {
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
 
     console.log('   UI elements positioned');
+  }
+
+  /**
+   * Setup draggable functionality for all panels (UI Improvements)
+   */
+  private setupDraggablePanels(): void {
+    console.log('🖱️  Setting up draggable panels...');
+
+    // Get panel containers (each panel has a container property)
+    const panels = [
+      { name: 'Debug Panel', container: (this.debugPanel as any).container, width: this.debugPanel.getWidth(), height: this.debugPanel.getHeight(), id: 'debug' },
+      { name: 'Survival Panel', container: (this.survivalPanel as any).container, width: 400, height: 300, id: 'survival' },
+      { name: 'MiniMap', container: (this.miniMap as any).container, width: this.miniMap.getWidth(), height: this.miniMap.getHeight(), id: 'minimap' },
+      { name: 'Embedding Metrics', container: (this.embeddingMetricsPanel as any).container, width: this.embeddingMetricsPanel.getWidth(), height: this.embeddingMetricsPanel.getHeight(), id: 'embedding-metrics' },
+      { name: 'Embedding Visualization', container: (this.embeddingVisualizationPanel as any).container, width: this.embeddingVisualizationPanel.getWidth(), height: this.embeddingVisualizationPanel.getHeight(), id: 'embedding-viz' },
+      { name: 'Planning Panel', container: (this.planningPanel as any).container, width: this.planningPanel.getWidth(), height: this.planningPanel.getHeight(), id: 'planning' },
+      { name: 'Current Run Panel', container: (this.currentRunPanel as any).container, width: this.currentRunPanel.getWidth(), height: this.currentRunPanel.getHeight(), id: 'current-run' },
+      { name: 'Multi-Agent Panel', container: (this.multiAgentPanel as any).container, width: this.multiAgentPanel.getWidth(), height: this.multiAgentPanel.getHeight(), id: 'multi-agent' },
+      { name: 'Conversation Panel', container: (this.conversationPanel as any).container, width: this.conversationPanel.getWidth(), height: this.conversationPanel.getHeight(), id: 'conversation' }
+    ];
+
+    // Make each panel draggable
+    for (const panel of panels) {
+      try {
+        if (panel.container) {
+          this.panelDragManager.makeDraggable(panel.container, {
+            id: panel.id,
+            width: panel.width,
+            height: panel.height,
+            snapThreshold: 20,
+            persistPosition: true,
+            showDragHandle: true
+          });
+          console.log(`   ✅ ${panel.name} is now draggable`);
+        }
+      } catch (error) {
+        console.warn(`   ⚠️ Could not make ${panel.name} draggable:`, error);
+      }
+    }
+
+    console.log('✅ All panels are now draggable!');
   }
 
   /**
