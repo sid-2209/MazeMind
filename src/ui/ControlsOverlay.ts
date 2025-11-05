@@ -70,12 +70,30 @@ export class ControlsOverlay {
       ],
     },
     {
-      title: 'DEBUG & HELP',
+      title: 'AGENT & MULTI-AGENT',
+      controls: [
+        { key: 'A', description: 'Toggle Autonomous mode' },
+        { key: 'Z', description: 'Toggle Multi-Agent panel' },
+        { key: 'L', description: 'Cycle LLM provider' },
+        { key: '1/2/3', description: 'Set agent count (1-3)' },
+      ],
+    },
+    {
+      title: 'UI PANELS',
       controls: [
         { key: 'I', description: 'Toggle debug panel' },
+        { key: 'S', description: 'Toggle survival panel' },
+        { key: 'P', description: 'Toggle planning panel' },
+        { key: 'C', description: 'Toggle current run panel' },
         { key: 'E', description: 'Toggle embedding metrics' },
-        { key: 'M', description: 'Toggle memory visualization' },
+        { key: 'M', description: 'Toggle memory viz' },
         { key: 'H', description: 'Toggle this help' },
+      ],
+    },
+    {
+      title: 'MAZE',
+      controls: [
+        { key: 'R', description: 'Regenerate maze' },
       ],
     },
   ];

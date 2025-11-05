@@ -41,18 +41,23 @@ async function start() {
  */
 function displayControls(): void {
   console.log('🎮 Controls:');
-  console.log('   WASD / Arrow Keys: Move Arth (Manual mode)');
+  console.log('   WASD / Arrow Keys: Move agents (Manual mode)');
   console.log('   Mouse Wheel: Zoom in/out');
   console.log('   Home: Reset camera');
   console.log('   Space: Pause/Resume');
-  console.log('   A: Toggle Autonomous/Manual mode (or toggle Multi-Agent Panel)');
+  console.log('   A: Toggle Autonomous/Manual mode');
+  console.log('   Z: Toggle Multi-Agent Panel');
   console.log('   L: Cycle LLM Provider (Heuristic/Ollama/Anthropic)');
-  console.log('   I: Show debug info');
+  console.log('   I: Toggle Debug Info');
+  console.log('   S: Toggle Survival Panel');
+  console.log('   E: Toggle Embedding Metrics');
+  console.log('   M: Toggle Memory Visualization');
+  console.log('   P: Toggle Planning Panel');
+  console.log('   C: Toggle Current Run Panel');
   console.log('   V / B: Cycle view modes');
   console.log('   T: Skip to next time period');
   console.log('   [ / ]: Slow down / Speed up time');
-  console.log('   1 / 2 / 3: Set agent count (then press R)');
-  console.log('   R: Regenerate maze');
+  console.log('   1 / 2 / 3: Set agent count (then press R to regenerate)');
   console.log('\n');
 }
 
@@ -88,16 +93,21 @@ function setupUI(): void {
         🖱️ Mouse Wheel: Zoom<br>
         🏠 Home: Reset Camera<br>
         ⏸️ Space: Pause<br>
-        🤖 A: Autonomous/Agents<br>
+        🤖 A: Autonomous Mode<br>
+        👥 Z: Multi-Agent Panel<br>
         🔄 L: Switch LLM<br>
         🔍 I: Debug Info<br>
+        🧬 S: Survival Panel<br>
         🧠 E: Embedding Metrics<br>
         📊 M: Memory Viz<br>
+        📋 P: Planning Panel<br>
+        📈 C: Current Run Panel<br>
         🎯 H: Help/Controls<br>
         ⏰ T: Skip Time<br>
         ⏩ [ / ]: Time Speed<br>
         👥 1/2/3: Agent Count<br>
-        🔄 R: New Maze
+        🔄 R: New Maze<br>
+        🎨 V / B: View Modes
       </div>
       <div id="mode-info" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>Mode:</strong><br>
@@ -123,8 +133,8 @@ function setupUI(): void {
       </div>
       <div id="multi-agent-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>👥 Agents:</strong><br>
-        <span id="agent-count-display">1 active</span><br>
-        <small style="color: #888888;">Press A to view</small>
+        <span id="agent-count-display">2 active</span><br>
+        <small style="color: #888888;">Press Z to view</small>
       </div>
       <div id="view-mode-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>View:</strong><br>

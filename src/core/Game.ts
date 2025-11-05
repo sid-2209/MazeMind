@@ -54,7 +54,7 @@ export class Game {
   // Multi-agent systems (Week 6)
   private agentManager: AgentManager | null = null;
   private multiAgentRenderer: MultiAgentRenderer | null = null;
-  private selectedAgentCount: number = 1; // Default: single agent
+  private selectedAgentCount: number = 2; // Default: 2 agents for multi-agent mode
   private agentControllers: Map<string, AgentController> = new Map();
   private autonomousControllers: Map<string, AutonomousController> = new Map();
 

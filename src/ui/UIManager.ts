@@ -1,9 +1,9 @@
 // src/ui/UIManager.ts
 /**
- * UIManager - Central coordinator for all UI components (Day 9)
+ * UIManager - Central coordinator for all UI components (Day 9 + Week 6)
  *
  * Manages:
- * - StatusPanel (health, hunger, thirst, energy bars)
+ * - SurvivalPanel (multi-agent survival metrics with expand/collapse)
  * - MiniMap (maze overview and exploration)
  * - DebugPanel (performance and debug info)
  * - ControlsOverlay (keyboard shortcuts help)
@@ -13,7 +13,6 @@
  */
 
 import { Container } from 'pixi.js';
-import { StatusPanel } from './StatusPanel';
 import { MiniMap } from './MiniMap';
 import { DebugPanel } from './DebugPanel';
 import { ControlsOverlay } from './ControlsOverlay';
@@ -40,7 +39,6 @@ export class UIManager {
   private fogOfWar: FogOfWar | null;
 
   // UI Components
-  private statusPanel!: StatusPanel;
   private miniMap!: MiniMap;
   private debugPanel!: DebugPanel;
   private controlsOverlay!: ControlsOverlay;
@@ -83,10 +81,6 @@ export class UIManager {
    */
   async init(): Promise<void> {
     console.log('🎨 Initializing UI Manager...');
-
-    // Create status panel (top-left)
-    this.statusPanel = new StatusPanel(this.uiContainer, this.agent);
-    await this.statusPanel.init();
 
     // Create minimap (bottom-right)
     this.miniMap = new MiniMap(this.uiContainer, this.maze, this.agent, this.fogOfWar);
@@ -136,7 +130,40 @@ export class UIManager {
     // Setup keyboard controls
     this.setupKeyboardControls();
 
+    // Set default visibility (Week 6: Minimize clutter)
+    this.setDefaultVisibility();
+
     console.log('✅ UI Manager initialized');
+  }
+
+  /**
+   * Set default visibility for minimal clutter (Week 6)
+   */
+  private setDefaultVisibility(): void {
+    // Visible by default: Survival Panel and MiniMap only
+    this.survivalPanel.setVisible(true);
+    this.miniMap.setVisible(true);
+
+    // Hidden by default: All advanced/debug panels
+    this.debugPanel.setVisible(false);
+    this.multiAgentPanel.setVisible(false);
+
+    // These panels use hide() instead of setVisible()
+    if (!this.embeddingMetricsPanel.isVisible()) {
+      // Already hidden
+    }
+    if (!this.embeddingVisualizationPanel.isVisible()) {
+      // Already hidden
+    }
+    if (!this.currentRunPanel.isVisible()) {
+      // Already hidden
+    }
+    if (!this.planningPanel.isVisible()) {
+      // Already hidden
+    }
+    // ControlsOverlay is already hidden by default
+
+    console.log('   UI visibility set (minimized clutter)');
   }
 
   /**
@@ -145,8 +172,8 @@ export class UIManager {
   private positionUIElements(): void {
     const padding = 16;
 
-    // Status Panel - Top Left
-    this.statusPanel.setPosition(padding, padding);
+    // Survival Panel - Top Left (replaces StatusPanel)
+    this.survivalPanel.setPosition(padding, padding);
 
     // MiniMap - Bottom Right
     const miniMapX = this.screenWidth - this.miniMap.getWidth() - padding;
@@ -228,8 +255,8 @@ export class UIManager {
           this.survivalPanel.toggle();
           break;
 
-        case 'r':
-          // Toggle current run panel (Week 4)
+        case 'c':
+          // Toggle current run panel (Week 4) - Changed to 'C' to avoid conflict with regenerate maze
           this.currentRunPanel.toggle();
           break;
 
@@ -238,8 +265,8 @@ export class UIManager {
           this.planningPanel.toggle();
           break;
 
-        case 'a':
-          // Toggle multi-agent panel (Week 6)
+        case 'z':
+          // Toggle multi-agent panel (Week 6) - Changed to 'Z' for easy access
           this.multiAgentPanel.toggle();
           break;
       }
@@ -247,21 +274,18 @@ export class UIManager {
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, R: run stats, P: planning, A: agents)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, C: current run, P: planning, Z: multi-agent)');
   }
 
   /**
    * Update all UI components
    */
   update(deltaTime: number, gameTime: number = 0): void {
-    // Update status panel
-    this.statusPanel.update(deltaTime);
+    // Update survival panel (Week 3 + Week 6 multi-agent)
+    this.survivalPanel.update(deltaTime);
 
     // Update minimap
     this.miniMap.update(deltaTime);
-
-    // Update survival panel (Week 3)
-    this.survivalPanel.update(deltaTime);
 
     // Update current run panel (Week 4)
     this.currentRunPanel.update(deltaTime, gameTime);
@@ -316,17 +340,19 @@ export class UIManager {
   }
 
   /**
-   * Set agent manager for multi-agent panel (Week 6)
+   * Set agent manager for multi-agent support (Week 6)
    */
   setAgentManager(manager: AgentManager | null): void {
     this.multiAgentPanel.setAgentManager(manager);
+    this.survivalPanel.setAgentManager(manager);
+    this.miniMap.setAgentManager(manager); // Week 6: Wire to minimap for entrance visualization
   }
 
   /**
    * Show all UI components
    */
   showAll(): void {
-    this.statusPanel.setVisible(true);
+    this.survivalPanel.setVisible(true);
     this.miniMap.setVisible(true);
     // Debug and controls remain toggle-able
   }
@@ -335,18 +361,10 @@ export class UIManager {
    * Hide all UI components
    */
   hideAll(): void {
-    this.statusPanel.setVisible(false);
+    this.survivalPanel.setVisible(false);
     this.miniMap.setVisible(false);
     this.debugPanel.setVisible(false);
     this.controlsOverlay.hide();
-  }
-
-  /**
-   * Toggle status panel visibility
-   */
-  toggleStatusPanel(): void {
-    const currentlyVisible = this.statusPanel.getWidth() > 0; // Hacky check, ideally add isVisible method
-    this.statusPanel.setVisible(!currentlyVisible);
   }
 
   /**
@@ -355,13 +373,6 @@ export class UIManager {
   toggleMiniMap(): void {
     const currentlyVisible = this.miniMap.getWidth() > 0; // Hacky check
     this.miniMap.setVisible(!currentlyVisible);
-  }
-
-  /**
-   * Get status panel
-   */
-  getStatusPanel(): StatusPanel {
-    return this.statusPanel;
   }
 
   /**
@@ -398,10 +409,6 @@ export class UIManager {
     }
 
     // Destroy all UI components
-    if (this.statusPanel) {
-      this.statusPanel.destroy();
-    }
-
     if (this.miniMap) {
       this.miniMap.destroy();
     }

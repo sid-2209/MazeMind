@@ -14,19 +14,21 @@ import { Graphics, Container, Text, TextStyle } from 'pixi.js';
 import { Maze, TileType } from '../types';
 import { Agent } from '../agent/Agent';
 import { FogOfWar } from '../rendering/FogOfWar';
+import { AgentManager } from '../systems/AgentManager';
 
 export class MiniMap {
   private container: Container;
   private maze: Maze;
   private agent: Agent;
   private fogOfWar: FogOfWar | null;
+  private agentManager: AgentManager | null = null; // Week 6
 
   // Graphics elements
   private panelBg!: Graphics;
   private titleText!: Text;
   private mapContainer!: Container;
   private agentDot!: Graphics;
-  private entranceMarker!: Graphics;
+  private entranceMarkers: Graphics[] = []; // Changed to array for multi-agent (Week 6)
   private exitMarker!: Graphics;
   private tileDots: Graphics[][] = [];
 
@@ -166,31 +168,20 @@ export class MiniMap {
   }
 
   /**
-   * Create entrance and exit markers
+   * Set agent manager for multi-agent support (Week 6)
+   */
+  setAgentManager(manager: AgentManager | null): void {
+    this.agentManager = manager;
+    // Recreate entrance markers with agent colors
+    this.recreateEntranceMarkers();
+  }
+
+  /**
+   * Create entrance and exit markers (Week 6: Multi-Agent Support)
    */
   private createMarkers(): void {
-    // Entrance marker (green)
-    this.entranceMarker = new Graphics();
-    this.entranceMarker.beginFill(0x44ff44, 0.9);
-    this.entranceMarker.drawCircle(
-      this.miniTileSize / 2,
-      this.miniTileSize / 2,
-      this.miniTileSize / 2 + 1
-    );
-    this.entranceMarker.endFill();
-
-    // Border
-    this.entranceMarker.lineStyle(1, 0xffffff, 0.8);
-    this.entranceMarker.drawCircle(
-      this.miniTileSize / 2,
-      this.miniTileSize / 2,
-      this.miniTileSize / 2 + 1
-    );
-
-    this.entranceMarker.x = this.mapOffsetX + this.maze.entrance.x * this.miniTileSize;
-    this.entranceMarker.y = this.mapOffsetY + this.maze.entrance.y * this.miniTileSize;
-
-    this.mapContainer.addChild(this.entranceMarker);
+    // Create entrance markers (will be updated in recreateEntranceMarkers)
+    this.recreateEntranceMarkers();
 
     // Exit marker (red)
     this.exitMarker = new Graphics();
@@ -215,8 +206,56 @@ export class MiniMap {
 
     this.mapContainer.addChild(this.exitMarker);
 
-    console.log(`   Entrance: (${this.maze.entrance.x}, ${this.maze.entrance.y})`);
     console.log(`   Exit: (${this.maze.exit.x}, ${this.maze.exit.y})`);
+  }
+
+  /**
+   * Recreate entrance markers with agent colors (Week 6)
+   */
+  private recreateEntranceMarkers(): void {
+    // Clear existing entrance markers
+    this.entranceMarkers.forEach(marker => {
+      this.mapContainer.removeChild(marker);
+      marker.destroy();
+    });
+    this.entranceMarkers = [];
+
+    // Get entrances (support both single and multi-agent)
+    const entrances = this.maze.entrances || [this.maze.entrance];
+
+    // Get agents if available
+    const agents = this.agentManager ? this.agentManager.getAllAgents() : [this.agent];
+
+    // Create a marker for each entrance
+    entrances.forEach((entrance, index) => {
+      const agent = agents[index] || agents[0]; // Fallback to first agent
+      const agentColor = agent ? agent.getColor() : 0x44ff44; // Default green
+
+      const marker = new Graphics();
+      marker.beginFill(agentColor, 0.9);
+      marker.drawCircle(
+        this.miniTileSize / 2,
+        this.miniTileSize / 2,
+        this.miniTileSize / 2 + 1
+      );
+      marker.endFill();
+
+      // Border
+      marker.lineStyle(1, 0xffffff, 0.8);
+      marker.drawCircle(
+        this.miniTileSize / 2,
+        this.miniTileSize / 2,
+        this.miniTileSize / 2 + 1
+      );
+
+      marker.x = this.mapOffsetX + entrance.x * this.miniTileSize;
+      marker.y = this.mapOffsetY + entrance.y * this.miniTileSize;
+
+      this.mapContainer.addChild(marker);
+      this.entranceMarkers.push(marker);
+
+      console.log(`   Entrance ${index + 1}: (${entrance.x}, ${entrance.y}) - ${agent?.getName() || 'Unknown'}`);
+    });
   }
 
   /**
