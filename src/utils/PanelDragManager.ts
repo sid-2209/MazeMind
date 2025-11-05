@@ -36,7 +36,6 @@ interface DragState {
   offsetX: number;
   offsetY: number;
   dragHandle: Graphics | null;
-  dragIndicator: Graphics | null;
 }
 
 export class PanelDragManager {
@@ -65,8 +64,7 @@ export class PanelDragManager {
       startY: 0,
       offsetX: 0,
       offsetY: 0,
-      dragHandle: null,
-      dragIndicator: null
+      dragHandle: null
     };
 
     this.dragStates.set(container, dragState);
@@ -95,20 +93,23 @@ export class PanelDragManager {
   private createDragHandle(container: Container, dragState: DragState, config: Required<DragConfig>): void {
     const dragHandle = new Graphics();
 
-    // Semi-transparent handle area at top
-    dragHandle.beginFill(0x00ff00, 0.05);
-    dragHandle.drawRect(0, 0, config.width, 24);
-    dragHandle.endFill();
+    // Small drag icon in top-right corner (6 dots in 2x3 grid)
+    const iconSize = 2;
+    const iconSpacing = 3;
+    const iconX = config.width - 18; // 18px from right edge
+    const iconY = 8; // 8px from top
 
-    // Drag indicator dots
-    const dotSpacing = 6;
-    const dotCount = 5;
-    const startX = (config.width - (dotCount - 1) * dotSpacing) / 2;
-
-    for (let i = 0; i < dotCount; i++) {
-      dragHandle.beginFill(0x00ff00, 0.4);
-      dragHandle.drawCircle(startX + i * dotSpacing, 12, 1.5);
-      dragHandle.endFill();
+    // Draw 2x3 grid of dots
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 3; col++) {
+        dragHandle.beginFill(0x00ff00, 0.3);
+        dragHandle.drawCircle(
+          iconX + col * iconSpacing,
+          iconY + row * iconSpacing,
+          iconSize
+        );
+        dragHandle.endFill();
+      }
     }
 
     dragHandle.interactive = false;
@@ -119,43 +120,57 @@ export class PanelDragManager {
   }
 
   /**
-   * Setup drag event handlers
+   * Setup drag event handlers - Professional implementation
    */
   private setupDragHandlers(container: Container, dragState: DragState, config: Required<DragConfig>): void {
-    // Make container interactive
-    container.interactive = true;
-    container.interactiveChildren = true;
-    container.cursor = 'grab';
+    // Create invisible draggable background layer
+    const dragBackground = new Graphics();
+    dragBackground.beginFill(0x000000, 0.01); // Nearly invisible
+    dragBackground.drawRect(0, 0, config.width, config.height);
+    dragBackground.endFill();
+    dragBackground.interactive = true;
+    dragBackground.cursor = 'grab';
+    dragBackground.zIndex = -100; // Behind all content
 
-    // Pointer down - start drag
-    container.on('pointerdown', (event: any) => {
+    // Add as first child (background layer)
+    container.addChildAt(dragBackground, 0);
+
+    // Enable interactive children for buttons, dropdowns, etc.
+    container.interactive = false; // Container itself doesn't capture events
+    container.interactiveChildren = true;
+
+    // Track if we're dragging
+    let isDraggingActive = false;
+
+    // Pointer down on drag background - start drag
+    dragBackground.on('pointerdown', (event: any) => {
       const position = event.data.global;
-      dragState.startX = position.x;
-      dragState.startY = position.y;
       dragState.offsetX = position.x - container.x;
       dragState.offsetY = position.y - container.y;
+      isDraggingActive = true;
       dragState.isDragging = true;
 
       // Change cursor
-      container.cursor = 'grabbing';
+      dragBackground.cursor = 'grabbing';
 
       // Bring to front
       this.bringToFront(container);
 
-      // Show drag indicator
-      if (!dragState.dragIndicator && config.showDragHandle) {
-        this.createDragIndicator(container, dragState, config);
-      }
-      if (dragState.dragIndicator) {
-        dragState.dragIndicator.visible = true;
+      // Attach global move/up handlers for smooth dragging
+      const stage = container.parent;
+      if (stage) {
+        stage.interactive = true;
+        stage.on('pointermove', onPointerMove);
+        stage.on('pointerup', onPointerUp);
+        stage.on('pointerupoutside', onPointerUp);
       }
 
       event.stopPropagation();
     });
 
-    // Pointer move - drag
-    container.on('pointermove', (event: any) => {
-      if (!dragState.isDragging) return;
+    // Global pointer move - smooth drag anywhere
+    const onPointerMove = (event: any) => {
+      if (!isDraggingActive) return;
 
       const position = event.data.global;
       let newX = position.x - dragState.offsetX;
@@ -179,52 +194,36 @@ export class PanelDragManager {
 
       container.x = newX;
       container.y = newY;
+    };
 
-      event.stopPropagation();
-    });
+    // Global pointer up - end drag
+    const onPointerUp = () => {
+      if (!isDraggingActive) return;
 
-    // Pointer up - end drag
-    const endDrag = (event?: any) => {
-      if (!dragState.isDragging) return;
-
+      isDraggingActive = false;
       dragState.isDragging = false;
-      container.cursor = 'grab';
+      dragBackground.cursor = 'grab';
 
-      // Hide drag indicator
-      if (dragState.dragIndicator) {
-        dragState.dragIndicator.visible = false;
+      // Remove global handlers
+      const stage = container.parent;
+      if (stage) {
+        stage.off('pointermove', onPointerMove);
+        stage.off('pointerup', onPointerUp);
+        stage.off('pointerupoutside', onPointerUp);
       }
 
       // Save position
       this.savePosition(container, config);
-
-      if (event) {
-        event.stopPropagation();
-      }
     };
 
-    container.on('pointerup', endDrag);
-    container.on('pointerupoutside', endDrag);
-
-    // Click to bring to front
-    container.on('click', (event: any) => {
+    // Click on drag background to bring to front
+    dragBackground.on('click', (event: any) => {
       this.bringToFront(container);
       event.stopPropagation();
     });
-  }
 
-  /**
-   * Create drag indicator
-   */
-  private createDragIndicator(container: Container, dragState: DragState, config: Required<DragConfig>): void {
-    const indicator = new Graphics();
-    indicator.lineStyle(2, 0x00ff00, 0.6);
-    indicator.drawRect(0, 0, config.width, config.height);
-    indicator.visible = false;
-    indicator.zIndex = -1;
-    container.addChildAt(indicator, 0);
-
-    dragState.dragIndicator = indicator;
+    // Store drag background reference for cleanup
+    dragState.dragHandle = dragBackground;
   }
 
   /**
@@ -317,9 +316,6 @@ export class PanelDragManager {
     // Clean up graphics
     if (dragState.dragHandle) {
       dragState.dragHandle.destroy();
-    }
-    if (dragState.dragIndicator) {
-      dragState.dragIndicator.destroy();
     }
 
     // Remove event listeners
