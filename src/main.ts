@@ -45,12 +45,13 @@ function displayControls(): void {
   console.log('   Mouse Wheel: Zoom in/out');
   console.log('   Home: Reset camera');
   console.log('   Space: Pause/Resume');
-  console.log('   A: Toggle Autonomous/Manual mode');
+  console.log('   A: Toggle Autonomous/Manual mode (or toggle Multi-Agent Panel)');
   console.log('   L: Cycle LLM Provider (Heuristic/Ollama/Anthropic)');
   console.log('   I: Show debug info');
   console.log('   V / B: Cycle view modes');
   console.log('   T: Skip to next time period');
   console.log('   [ / ]: Slow down / Speed up time');
+  console.log('   1 / 2 / 3: Set agent count (then press R)');
   console.log('   R: Regenerate maze');
   console.log('\n');
 }
@@ -87,7 +88,7 @@ function setupUI(): void {
         🖱️ Mouse Wheel: Zoom<br>
         🏠 Home: Reset Camera<br>
         ⏸️ Space: Pause<br>
-        🤖 A: Autonomous Mode<br>
+        🤖 A: Autonomous/Agents<br>
         🔄 L: Switch LLM<br>
         🔍 I: Debug Info<br>
         🧠 E: Embedding Metrics<br>
@@ -95,6 +96,7 @@ function setupUI(): void {
         🎯 H: Help/Controls<br>
         ⏰ T: Skip Time<br>
         ⏩ [ / ]: Time Speed<br>
+        👥 1/2/3: Agent Count<br>
         🔄 R: New Maze
       </div>
       <div id="mode-info" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
@@ -118,6 +120,11 @@ function setupUI(): void {
         Position: <span id="agent-position">(0, 0)</span><br>
         Tile: <span id="agent-tile">(0, 0)</span><br>
         Status: <span id="agent-status">Idle</span>
+      </div>
+      <div id="multi-agent-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
+        <strong>👥 Agents:</strong><br>
+        <span id="agent-count-display">1 active</span><br>
+        <small style="color: #888888;">Press A to view</small>
       </div>
       <div id="view-mode-section" style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>View:</strong><br>
@@ -211,6 +218,17 @@ function updateUI(): void {
     if (statusElement) {
       statusElement.textContent = status;
       statusElement.style.color = status === 'Moving' ? '#00ff00' : '#888888';
+    }
+  }
+
+  // Update multi-agent info (Week 6)
+  const agentManager = game.getAgentManager();
+  if (agentManager) {
+    const agentCountDisplay = document.getElementById('agent-count-display');
+    if (agentCountDisplay) {
+      const count = agentManager.getAgentCount();
+      agentCountDisplay.textContent = `${count} active`;
+      agentCountDisplay.style.color = count > 1 ? '#00ff00' : '#888888';
     }
   }
 
@@ -340,6 +358,23 @@ function displayError(error: any): void {
  * Setup keyboard shortcuts
  */
 window.addEventListener('keydown', (e: KeyboardEvent) => {
+  // Set agent count with number keys 1-3 (Week 6)
+  if (e.key === '1') {
+    console.log('👤 Setting agent count to 1...');
+    game.setAgentCount(1);
+    console.log('   Press R to regenerate maze with 1 agent');
+  }
+  if (e.key === '2') {
+    console.log('👥 Setting agent count to 2...');
+    game.setAgentCount(2);
+    console.log('   Press R to regenerate maze with 2 agents');
+  }
+  if (e.key === '3') {
+    console.log('👥👥 Setting agent count to 3...');
+    game.setAgentCount(3);
+    console.log('   Press R to regenerate maze with 3 agents');
+  }
+
   // Regenerate maze with R key
   if (e.key === 'r' || e.key === 'R') {
     console.log('🔄 Regenerating maze...');

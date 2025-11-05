@@ -22,12 +22,14 @@ import { EmbeddingVisualizationPanel } from './EmbeddingVisualizationPanel';
 import { SurvivalPanel } from './SurvivalPanel'; // Week 3
 import { CurrentRunPanel } from './CurrentRunPanel'; // Week 4
 import { PlanningPanel } from './PlanningPanel'; // Week 5
+import { MultiAgentPanel } from './MultiAgentPanel'; // Week 6
 import { Agent } from '../agent/Agent';
 import { TimeManager } from '../core/TimeManager';
 import { Camera } from '../rendering/Camera';
 import { FogOfWar } from '../rendering/FogOfWar';
 import { Maze } from '../types';
 import { DataCollector } from '../systems/DataCollector'; // Week 4
+import { AgentManager } from '../systems/AgentManager'; // Week 6
 
 export class UIManager {
   private uiContainer: Container;
@@ -47,6 +49,7 @@ export class UIManager {
   private survivalPanel!: SurvivalPanel; // Week 3
   private currentRunPanel!: CurrentRunPanel; // Week 4
   private planningPanel!: PlanningPanel; // Week 5
+  private multiAgentPanel!: MultiAgentPanel; // Week 6
 
   // Screen dimensions
   private screenWidth: number;
@@ -123,6 +126,10 @@ export class UIManager {
     this.planningPanel = new PlanningPanel(this.uiContainer, this.agent);
     await this.planningPanel.init();
 
+    // Create multi-agent panel (top-center, initially hidden) - Week 6
+    this.multiAgentPanel = new MultiAgentPanel(this.uiContainer);
+    await this.multiAgentPanel.init();
+
     // Position all UI elements
     this.positionUIElements();
 
@@ -179,6 +186,11 @@ export class UIManager {
     const runPanelY = padding + this.debugPanel.getHeight() + padding; // Below debug panel
     this.currentRunPanel.setPosition(runPanelX, runPanelY);
 
+    // Multi-Agent Panel - Top Center (Week 6)
+    const multiAgentX = (this.screenWidth - this.multiAgentPanel.getWidth()) / 2;
+    const multiAgentY = padding;
+    this.multiAgentPanel.setPosition(multiAgentX, multiAgentY);
+
     // Controls Overlay - Centered
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
 
@@ -225,12 +237,17 @@ export class UIManager {
           // Toggle planning panel (Week 5)
           this.planningPanel.toggle();
           break;
+
+        case 'a':
+          // Toggle multi-agent panel (Week 6)
+          this.multiAgentPanel.toggle();
+          break;
       }
     };
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, R: run stats, P: planning)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, R: run stats, P: planning, A: agents)');
   }
 
   /**
@@ -252,6 +269,11 @@ export class UIManager {
     // Update planning panel (Week 5, only if visible for performance)
     if (this.planningPanel.isVisible()) {
       this.planningPanel.update(deltaTime, gameTime);
+    }
+
+    // Update multi-agent panel (Week 6, only if visible for performance)
+    if (this.multiAgentPanel.isVisible()) {
+      this.multiAgentPanel.update(deltaTime, gameTime);
     }
 
     // Update debug panel (only if visible for performance)
@@ -291,6 +313,13 @@ export class UIManager {
    */
   setDataCollector(collector: DataCollector | null): void {
     this.currentRunPanel.setDataCollector(collector);
+  }
+
+  /**
+   * Set agent manager for multi-agent panel (Week 6)
+   */
+  setAgentManager(manager: AgentManager | null): void {
+    this.multiAgentPanel.setAgentManager(manager);
   }
 
   /**

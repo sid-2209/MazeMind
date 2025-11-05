@@ -32,6 +32,9 @@ import { CONSTANTS } from '../config/game.config'; // Week 3
 import { DataCollector } from '../systems/DataCollector'; // Week 4
 import { SimulationOutcome } from '../types/metrics'; // Week 4
 import { ExportManager } from '../utils/ExportManager'; // Week 4
+import { AgentManager } from '../systems/AgentManager'; // Week 6
+import { MultiAgentRenderer } from '../rendering/MultiAgentRenderer'; // Week 6
+import { PREDEFINED_AGENTS } from '../types/multi-agent'; // Week 6
 
 export class Game {
   // Core systems
@@ -42,11 +45,18 @@ export class Game {
   private viewModeManager: ViewModeManager | null = null;  // Day 8
   private uiManager: UIManager | null = null;  // NEW in Day 9
 
-  // Agent systems
-  private agent: Agent | null = null;
+  // Agent systems (Week 6: Multi-agent support)
+  private agent: Agent | null = null;  // Primary agent (backward compatibility)
   private agentRenderer: AgentRenderer | null = null;
   private agentController: AgentController | null = null;
   private autonomousController: AutonomousController | null = null; // NEW in Days 3-4
+
+  // Multi-agent systems (Week 6)
+  private agentManager: AgentManager | null = null;
+  private multiAgentRenderer: MultiAgentRenderer | null = null;
+  private selectedAgentCount: number = 1; // Default: single agent
+  private agentControllers: Map<string, AgentController> = new Map();
+  private autonomousControllers: Map<string, AutonomousController> = new Map();
 
   // Survival systems (Week 3)
   private itemGenerator: ItemGenerator | null = null;
@@ -102,11 +112,14 @@ export class Game {
   }
 
   /**
-   * Generate the maze
+   * Generate the maze (Week 6: Multi-agent support)
    */
   private async generateMaze(): Promise<void> {
     console.log('🧩 Generating maze...');
     const generator = new MazeGenerator();
+
+    // Week 6: Set agent count for maze generation
+    this.config.maze.agentCount = this.selectedAgentCount;
     this.maze = generator.generate(this.config.maze);
     console.log(`   Generated ${this.maze.width}×${this.maze.height} maze`);
   }
@@ -205,92 +218,119 @@ export class Game {
       throw new Error('Cannot initialize agent: prerequisites not ready');
     }
 
-    console.log('👤 Initializing agent...');
+    console.log(`👤 Initializing ${this.selectedAgentCount} agent(s)...`);
 
-    this.agent = new Agent(this.maze, this.maze.entrance);
-
+    // Week 6: Initialize multi-agent system
+    this.agentManager = new AgentManager(this.maze);
     const agentLayer = this.renderer.getAgentLayer();
-    this.agentRenderer = new AgentRenderer(
-      agentLayer,
-      this.agent,
-      this.config.visual
-    );
-    await this.agentRenderer.init();
+    this.multiAgentRenderer = new MultiAgentRenderer(agentLayer, this.config.visual);
 
-    this.agentController = new AgentController(
-      this.agent,
-      this.inputManager,
-      this.renderer.camera
-    );
+    // Get selected agent configurations
+    const selectedConfigs = PREDEFINED_AGENTS.slice(0, this.selectedAgentCount);
+    const entrances = this.maze.entrances || [this.maze.entrance];
 
-    // Initialize retrieval system with LLM provider configuration
+    // Create each agent
+    for (let i = 0; i < selectedConfigs.length; i++) {
+      const config = selectedConfigs[i];
+
+      // Assign entrance position
+      config.startPosition = entrances[i] || entrances[0];
+
+      // Create agent through AgentManager
+      const agent = await this.agentManager.createAgent(config);
+
+      // Add to multi-agent renderer
+      await this.multiAgentRenderer.addAgent(agent);
+
+      // Create controller for this agent
+      const controller = new AgentController(
+        agent,
+        this.inputManager,
+        this.renderer.camera
+      );
+      this.agentControllers.set(config.id, controller);
+
+      // Set primary agent (first one, for backward compatibility)
+      if (i === 0) {
+        this.agent = agent;
+        this.agentRenderer = this.multiAgentRenderer.getRenderer(config.id)!;
+        this.agentController = controller;
+      }
+
+      console.log(`   ✅ Created agent: ${config.name} at (${config.startPosition.x}, ${config.startPosition.y})`);
+    }
+
+    // Week 6: Initialize all agents
     const apiKey = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
     const llmProvider = (import.meta as any).env?.VITE_LLM_PROVIDER || 'heuristic';
     const ollamaUrl = (import.meta as any).env?.VITE_OLLAMA_URL || 'http://localhost:11434';
     const ollamaModel = (import.meta as any).env?.VITE_OLLAMA_MODEL || 'llama3.2:3b-instruct-q4_K_M';
-
-    // Embedding provider configuration (Week 2, Days 1-2: Real semantic embeddings)
     const embeddingProvider = (import.meta as any).env?.VITE_EMBEDDING_PROVIDER || 'openai';
     const openaiApiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY;
     const voyageApiKey = (import.meta as any).env?.VITE_VOYAGE_API_KEY;
 
-    this.agent.initializeRetrieval(
-      apiKey && apiKey !== 'sk-ant-your-key-here' ? apiKey : undefined,
-      llmProvider,
-      { url: ollamaUrl, model: ollamaModel },
-      {
-        provider: embeddingProvider,
-        openaiApiKey: openaiApiKey && openaiApiKey !== 'your-openai-api-key-here' ? openaiApiKey : undefined,
-        voyageApiKey: voyageApiKey && voyageApiKey !== 'your-voyage-api-key-here' ? voyageApiKey : undefined,
-      }
-    );
-
-    console.log(`🔍 Memory retrieval system initialized`);
+    console.log(`🔍 Initializing memory systems for ${this.selectedAgentCount} agent(s)...`);
     console.log(`🤖 LLM Provider: ${llmProvider}`);
     console.log(`🧠 Embedding Provider: ${embeddingProvider}`);
 
-    // Initialize autonomous controller (NEW in Days 3-4)
-    const decisionMaker = this.agent.getDecisionMaker();
-    if (decisionMaker) {
-      this.autonomousController = new AutonomousController(
-        this.agent,
-        decisionMaker,
+    // Initialize each agent's systems
+    for (const agent of this.agentManager!.getAllAgents()) {
+      // Initialize retrieval system
+      agent.initializeRetrieval(
+        apiKey && apiKey !== 'sk-ant-your-key-here' ? apiKey : undefined,
+        llmProvider,
+        { url: ollamaUrl, model: ollamaModel },
         {
-          decisionInterval: 3.0,
-          enableEmergencyOverride: true,
-          enableLogging: true,
+          provider: embeddingProvider,
+          openaiApiKey: openaiApiKey && openaiApiKey !== 'your-openai-api-key-here' ? openaiApiKey : undefined,
+          voyageApiKey: voyageApiKey && voyageApiKey !== 'your-voyage-api-key-here' ? voyageApiKey : undefined,
         }
       );
-      // Start in manual mode by default
-      this.autonomousController.setEnabled(false);
-      console.log('🤖 Autonomous controller initialized (manual mode)');
-    }
 
-    // Wire up survival systems to agent (Week 3)
-    if (this.itemGenerator) {
-      this.agent.setItemGenerator(this.itemGenerator);
-      this.agent.setDeathCallback((agent) => this.handleAgentDeath(agent));
-      this.agent.setBreakdownCallback((agent) => this.handleAgentBreakdown(agent));
-
-      // Also wire to decision maker
+      // Initialize autonomous controller
+      const decisionMaker = agent.getDecisionMaker();
       if (decisionMaker) {
-        decisionMaker.setItemGenerator(this.itemGenerator);
+        const autoController = new AutonomousController(
+          agent,
+          decisionMaker,
+          {
+            decisionInterval: 3.0,
+            enableEmergencyOverride: true,
+            enableLogging: true,
+          }
+        );
+        autoController.setEnabled(false); // Start in manual mode
+        this.autonomousControllers.set(agent.getId(), autoController);
+
+        if (agent === this.agent) {
+          this.autonomousController = autoController; // Backward compatibility
+        }
       }
 
-      console.log('🧬 Survival systems wired to agent');
+      // Wire up survival systems
+      if (this.itemGenerator) {
+        agent.setItemGenerator(this.itemGenerator);
+        agent.setDeathCallback((a) => this.handleAgentDeath(a));
+        agent.setBreakdownCallback((a) => this.handleAgentBreakdown(a));
+
+        if (decisionMaker) {
+          decisionMaker.setItemGenerator(this.itemGenerator);
+        }
+      }
+
+      // Initialize planning system
+      if (agent.getPlanningSystem()) {
+        await agent.initializePlan(this.gameTime);
+      }
+
+      console.log(`   ✅ ${agent.getName()}: Memory, AI, and planning initialized`);
     }
 
-    // Initialize data collector (Week 4)
-    this.dataCollector = new DataCollector(this.agent, this.maze, this.maze.seed);
+    // Initialize data collector (primary agent only for now)
+    this.dataCollector = new DataCollector(this.agent!, this.maze, this.maze.seed);
     console.log('📊 Data collector initialized');
 
-    // Initialize planning system (Week 5)
-    if (this.agent.getPlanningSystem()) {
-      await this.agent.initializePlan(this.gameTime);
-      console.log('📋 Planning system initialized with daily plan');
-    }
-
-    console.log('✅ Agent initialized');
+    console.log('✅ All agents initialized');
   }
 
   /**
@@ -350,6 +390,11 @@ export class Game {
     // Wire data collector to UI (Week 4)
     if (this.dataCollector) {
       this.uiManager.setDataCollector(this.dataCollector);
+    }
+
+    // Wire agent manager to UI (Week 6)
+    if (this.agentManager) {
+      this.uiManager.setAgentManager(this.agentManager);
     }
 
     console.log('✅ UI system initialized');
@@ -472,38 +517,54 @@ export class Game {
     // Track game time (Week 4)
     this.gameTime += deltaTime * timeScale;
 
-    // Update agent
-    if (this.agent && this.agentRenderer) {
-      // Update DecisionMaker with game time (Week 5)
-      const decisionMaker = this.agent.getDecisionMaker();
-      if (decisionMaker) {
-        decisionMaker.updateGameTime(this.gameTime);
-      }
-
-      // Monitor for re-planning triggers (Week 5)
-      const planningSystem = this.agent.getPlanningSystem();
-      if (planningSystem) {
-        const context = this.agent.getPlanningContext();
-        context.gameTime = this.gameTime;
-
-        const replanReason = planningSystem.monitorForReplanning(context);
-        if (replanReason) {
-          console.log(`🔄 Re-planning triggered: ${replanReason}`);
-          this.agent.replan(replanReason, this.gameTime).catch(err => {
-            console.error('❌ Failed to replan:', err);
-          });
+    // Week 6: Update all agents
+    if (this.agentManager && this.multiAgentRenderer) {
+      // Update each agent
+      for (const agent of this.agentManager.getAllAgents()) {
+        // Update DecisionMaker with game time
+        const decisionMaker = agent.getDecisionMaker();
+        if (decisionMaker) {
+          decisionMaker.updateGameTime(this.gameTime);
         }
+
+        // Monitor for re-planning triggers
+        const planningSystem = agent.getPlanningSystem();
+        if (planningSystem) {
+          const context = agent.getPlanningContext();
+          context.gameTime = this.gameTime;
+
+          const replanReason = planningSystem.monitorForReplanning(context);
+          if (replanReason) {
+            console.log(`🔄 ${agent.getName()} re-planning: ${replanReason}`);
+            agent.replan(replanReason, this.gameTime).catch(err => {
+              console.error(`❌ ${agent.getName()} failed to replan:`, err);
+            });
+          }
+        }
+
+        // Update controller based on mode
+        const agentId = agent.getId();
+        const controller = this.agentControllers.get(agentId);
+        const autoController = this.autonomousControllers.get(agentId);
+
+        if (this.isAutonomousMode && autoController) {
+          autoController.update(deltaTime);
+        } else if (controller) {
+          // Only update primary agent controller in manual mode
+          if (agent === this.agent) {
+            controller.update(deltaTime);
+          }
+        }
+
+        // Update agent state
+        agent.update(deltaTime, timeScale);
       }
 
-      // Update appropriate controller based on mode (NEW in Days 3-4)
-      if (this.isAutonomousMode && this.autonomousController) {
-        this.autonomousController.update(deltaTime);
-      } else if (this.agentController) {
-        this.agentController.update(deltaTime);
-      }
+      // Update AgentManager for social interactions
+      this.agentManager.update(deltaTime, timeScale, this.gameTime);
 
-      this.agent.update(deltaTime, timeScale); // Week 3: pass timeScale
-      this.agentRenderer.update(deltaTime);
+      // Update multi-agent renderer
+      this.multiAgentRenderer.update(deltaTime);
     }
 
     // Update survival systems (Week 3)
@@ -882,5 +943,31 @@ export class Game {
     if (this.uiManager) {
       this.uiManager.handleResize(maxWidth, maxHeight);
     }
+  }
+
+  // ============================================
+  // Multi-Agent Support (Week 6)
+  // ============================================
+
+  /**
+   * Set number of agents for next game
+   */
+  setAgentCount(count: number): void {
+    this.selectedAgentCount = Math.max(1, Math.min(3, count));
+    console.log(`👥 Agent count set to: ${this.selectedAgentCount}`);
+  }
+
+  /**
+   * Get agent manager
+   */
+  getAgentManager(): AgentManager | null {
+    return this.agentManager;
+  }
+
+  /**
+   * Get all agents
+   */
+  getAllAgents(): Agent[] {
+    return this.agentManager?.getAllAgents() || [];
   }
 }
