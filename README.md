@@ -46,9 +46,9 @@ Visit `http://localhost:3000` to see the simulation!
 
 | Week | Status | Focus | Deliverables |
 |------|--------|-------|--------------|
-| Week 1 | 🚧 In Progress | Beautiful Visuals | Maze rendering, manual controls, day/night cycle |
-| Week 2 | 📅 Planned | Memory & AI | LLM integration, autonomous decisions |
-| Week 3 | 📅 Planned | Survival Mechanics | Resources, stress, psychological states |
+| Week 1 | ✅ Complete | Beautiful Visuals | Maze rendering, manual controls, day/night cycle, fog of war |
+| Week 2 | ✅ Complete | Memory & AI | Memory stream, embeddings, LLM integration, autonomous AI |
+| Week 3 | 📅 Ready to Implement | Survival Mechanics | Resources, stress, psychological states, cognitive degradation |
 | Week 4 | 📅 Planned | Analysis & Polish | Data collection, experiments, metrics |
 
 ## 🧠 The Agent: Arth

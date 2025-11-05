@@ -452,3 +452,9 @@ export type Nullable<T> = T | null;
 export type Optional<T> = T | undefined;
 export type Callback<T = void> = () => T;
 export type AsyncCallback<T = void> = () => Promise<T>;
+
+// ============================================
+// Planning Types (Week 5)
+// ============================================
+
+export * from './planning';

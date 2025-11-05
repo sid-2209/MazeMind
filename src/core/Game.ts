@@ -26,6 +26,12 @@ import { AgentController } from '../agent/AgentController';
 import { AutonomousController } from '../agent/AutonomousController'; // NEW in Days 3-4
 import { ViewModeManager } from '../ui/ViewModeManager';
 import { UIManager } from '../ui/UIManager';
+import { ItemGenerator } from '../systems/ItemGenerator'; // Week 3
+import { ItemRenderer } from '../rendering/ItemRenderer'; // Week 3
+import { CONSTANTS } from '../config/game.config'; // Week 3
+import { DataCollector } from '../systems/DataCollector'; // Week 4
+import { SimulationOutcome } from '../types/metrics'; // Week 4
+import { ExportManager } from '../utils/ExportManager'; // Week 4
 
 export class Game {
   // Core systems
@@ -41,6 +47,14 @@ export class Game {
   private agentRenderer: AgentRenderer | null = null;
   private agentController: AgentController | null = null;
   private autonomousController: AutonomousController | null = null; // NEW in Days 3-4
+
+  // Survival systems (Week 3)
+  private itemGenerator: ItemGenerator | null = null;
+  private itemRenderer: ItemRenderer | null = null;
+
+  // Data collection (Week 4)
+  private dataCollector: DataCollector | null = null;
+  private gameTime: number = 0; // Track total game time
 
   // Game state
   private maze: Maze | null = null;
@@ -74,6 +88,7 @@ export class Game {
       this.initTimeManager();
       await this.initRenderer();
       this.initInput();
+      await this.initSurvivalSystems();  // Week 3 - before agent
       await this.initAgent();
       await this.initViewModes();  // Day 8
       await this.initUI();  // NEW in Day 9
@@ -161,6 +176,28 @@ export class Game {
   }
 
   /**
+   * Initialize survival systems (Week 3)
+   */
+  private async initSurvivalSystems(): Promise<void> {
+    if (!this.maze || !this.renderer) {
+      throw new Error('Cannot initialize survival systems: prerequisites not ready');
+    }
+
+    console.log('🧬 Initializing survival systems...');
+
+    // Initialize item generator
+    this.itemGenerator = new ItemGenerator(this.maze, CONSTANTS.TILE_SIZE);
+    this.itemGenerator.generateItems();
+
+    // Initialize item renderer
+    const itemLayer = this.renderer.getAgentLayer(); // Items render on same layer as agent
+    this.itemRenderer = new ItemRenderer(itemLayer, CONSTANTS.TILE_SIZE);
+    await this.itemRenderer.init();
+
+    console.log('✅ Survival systems initialized');
+  }
+
+  /**
    * Initialize agent system
    */
   private async initAgent(): Promise<void> {
@@ -229,6 +266,30 @@ export class Game {
       console.log('🤖 Autonomous controller initialized (manual mode)');
     }
 
+    // Wire up survival systems to agent (Week 3)
+    if (this.itemGenerator) {
+      this.agent.setItemGenerator(this.itemGenerator);
+      this.agent.setDeathCallback((agent) => this.handleAgentDeath(agent));
+      this.agent.setBreakdownCallback((agent) => this.handleAgentBreakdown(agent));
+
+      // Also wire to decision maker
+      if (decisionMaker) {
+        decisionMaker.setItemGenerator(this.itemGenerator);
+      }
+
+      console.log('🧬 Survival systems wired to agent');
+    }
+
+    // Initialize data collector (Week 4)
+    this.dataCollector = new DataCollector(this.agent, this.maze, this.maze.seed);
+    console.log('📊 Data collector initialized');
+
+    // Initialize planning system (Week 5)
+    if (this.agent.getPlanningSystem()) {
+      await this.agent.initializePlan(this.gameTime);
+      console.log('📋 Planning system initialized with daily plan');
+    }
+
     console.log('✅ Agent initialized');
   }
 
@@ -285,6 +346,11 @@ export class Game {
     );
 
     await this.uiManager.init();
+
+    // Wire data collector to UI (Week 4)
+    if (this.dataCollector) {
+      this.uiManager.setDataCollector(this.dataCollector);
+    }
 
     console.log('✅ UI system initialized');
   }
@@ -343,6 +409,11 @@ export class Game {
         case 'L':
           this.cycleLLMProvider();
           break;
+        // Export data (Week 4)
+        case 'x':
+        case 'X':
+          this.exportCurrentRun();
+          break;
       }
     });
 
@@ -350,6 +421,7 @@ export class Game {
     console.log('     - WASD/Arrows: Move agent (manual mode)');
     console.log('     - A: Toggle autonomous/manual mode');
     console.log('     - L: Cycle LLM provider (Heuristic → Ollama → Anthropic)');
+    console.log('     - X: Export current run data');
     console.log('     - Mouse wheel: Zoom');
     console.log('     - V: Next view mode');
     console.log('     - B: Previous view mode');
@@ -394,8 +466,35 @@ export class Game {
       this.timeManager.update(deltaTime);
     }
 
+    // Get time scale for survival systems
+    const timeScale = this.timeManager?.getTimeScale() || 1;
+
+    // Track game time (Week 4)
+    this.gameTime += deltaTime * timeScale;
+
     // Update agent
     if (this.agent && this.agentRenderer) {
+      // Update DecisionMaker with game time (Week 5)
+      const decisionMaker = this.agent.getDecisionMaker();
+      if (decisionMaker) {
+        decisionMaker.updateGameTime(this.gameTime);
+      }
+
+      // Monitor for re-planning triggers (Week 5)
+      const planningSystem = this.agent.getPlanningSystem();
+      if (planningSystem) {
+        const context = this.agent.getPlanningContext();
+        context.gameTime = this.gameTime;
+
+        const replanReason = planningSystem.monitorForReplanning(context);
+        if (replanReason) {
+          console.log(`🔄 Re-planning triggered: ${replanReason}`);
+          this.agent.replan(replanReason, this.gameTime).catch(err => {
+            console.error('❌ Failed to replan:', err);
+          });
+        }
+      }
+
       // Update appropriate controller based on mode (NEW in Days 3-4)
       if (this.isAutonomousMode && this.autonomousController) {
         this.autonomousController.update(deltaTime);
@@ -403,8 +502,20 @@ export class Game {
         this.agentController.update(deltaTime);
       }
 
-      this.agent.update(deltaTime);
+      this.agent.update(deltaTime, timeScale); // Week 3: pass timeScale
       this.agentRenderer.update(deltaTime);
+    }
+
+    // Update survival systems (Week 3)
+    if (this.itemRenderer && this.itemGenerator) {
+      const items = this.itemGenerator.getAllItems();
+      this.itemRenderer.render(items);
+      this.itemRenderer.update(deltaTime);
+    }
+
+    // Update data collector (Week 4)
+    if (this.dataCollector) {
+      this.dataCollector.update(this.gameTime);
     }
 
     // Update view mode manager (Day 8)
@@ -414,7 +525,7 @@ export class Game {
 
     // Update UI system (NEW in Day 9)
     if (this.uiManager) {
-      this.uiManager.update(deltaTime);
+      this.uiManager.update(deltaTime, this.gameTime); // Pass game time for CurrentRunPanel
     }
 
     // Update renderer (includes fog of war)
@@ -652,6 +763,106 @@ export class Game {
     this.timeManager = null;
 
     console.log('✅ Game cleaned up');
+  }
+
+  // ============================================
+  // Survival Event Handlers (Week 3)
+  // ============================================
+
+  /**
+   * Handle agent death
+   */
+  private handleAgentDeath(agent: Agent): void {
+    console.log('💀 Agent has died - stopping autonomous mode');
+
+    // Determine cause of death
+    const survivalState = agent.getSurvivalState();
+    let outcome: SimulationOutcome;
+
+    if (survivalState.hunger === 0) {
+      outcome = SimulationOutcome.DEATH_STARVATION;
+    } else if (survivalState.thirst === 0) {
+      outcome = SimulationOutcome.DEATH_DEHYDRATION;
+    } else if (survivalState.energy === 0) {
+      outcome = SimulationOutcome.DEATH_EXHAUSTION;
+    } else {
+      outcome = SimulationOutcome.DEATH_STARVATION; // Fallback
+    }
+
+    // Finalize metrics (Week 4)
+    if (this.dataCollector) {
+      const metrics = this.dataCollector.finalize(outcome, this.gameTime);
+      console.log(`📊 Run completed: ${metrics.runId}`);
+      console.log(`   Outcome: ${outcome}`);
+      console.log(`   Survival Time: ${metrics.survivalTime.toFixed(1)}s`);
+      console.log(`   Items Consumed: ${metrics.totalItemsConsumed}`);
+      console.log(`   Tiles Explored: ${metrics.tilesExplored}`);
+    }
+
+    // Stop autonomous mode
+    if (this.autonomousController) {
+      this.autonomousController.setEnabled(false);
+      this.isAutonomousMode = false;
+    }
+
+    // Pause game
+    this.isPaused = true;
+
+    console.log('⏸️  Game paused due to agent death');
+  }
+
+  /**
+   * Handle agent mental breakdown
+   */
+  private handleAgentBreakdown(_agent: Agent): void {
+    console.log('🧠 Agent suffered mental breakdown - stopping autonomous mode');
+
+    // Finalize metrics (Week 4)
+    if (this.dataCollector) {
+      const metrics = this.dataCollector.finalize(SimulationOutcome.MENTAL_BREAKDOWN, this.gameTime);
+      console.log(`📊 Run completed: ${metrics.runId}`);
+      console.log(`   Outcome: Mental Breakdown`);
+      console.log(`   Survival Time: ${metrics.survivalTime.toFixed(1)}s`);
+      console.log(`   Final Stress: ${metrics.finalStress.toFixed(1)}%`);
+    }
+
+    // Stop autonomous mode
+    if (this.autonomousController) {
+      this.autonomousController.setEnabled(false);
+      this.isAutonomousMode = false;
+    }
+
+    // Pause game
+    this.isPaused = true;
+
+    console.log('⏸️  Game paused due to mental breakdown');
+  }
+
+  /**
+   * Export current run data (Week 4)
+   */
+  private exportCurrentRun(): void {
+    if (!this.dataCollector || !this.agent) {
+      console.log('⚠️  No data to export (no active run)');
+      return;
+    }
+
+    // Finalize metrics if agent is still alive
+    let metrics;
+    if (this.agent.getState().isAlive) {
+      // Agent still alive - export in-progress data
+      metrics = this.dataCollector.finalize(SimulationOutcome.IN_PROGRESS, this.gameTime);
+      console.log('📥 Exporting in-progress run data...');
+    } else {
+      // Agent dead/breakdown - should already be finalized, but finalize again to be safe
+      const survivalState = this.agent.getSurvivalState();
+      const outcome = survivalState.isDead ? SimulationOutcome.DEATH_DEHYDRATION : SimulationOutcome.MENTAL_BREAKDOWN;
+      metrics = this.dataCollector.finalize(outcome, this.gameTime);
+      console.log('📥 Exporting completed run data...');
+    }
+
+    // Export as JSON
+    ExportManager.exportRunJSON(metrics);
   }
 
   /**

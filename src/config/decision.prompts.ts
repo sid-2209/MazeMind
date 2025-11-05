@@ -50,6 +50,7 @@ export function buildDecisionPrompt(context: {
   energy: number;
   hunger: number;
   thirst: number;
+  stress: number;
   goal: string;
   recentMemories: string[];
   relevantMemories: string[];
@@ -68,6 +69,7 @@ PHYSICAL STATE:
   Energy:  ${Math.round(context.energy)}%  ${getStatusEmoji(context.energy)}
   Hunger:  ${Math.round(context.hunger)}%  ${getStatusEmoji(context.hunger)}
   Thirst:  ${Math.round(context.thirst)}%  ${getStatusEmoji(context.thirst)}
+  Stress:  ${Math.round(context.stress)}%  ${getStatusEmoji(100 - context.stress)}
 
 ${getPhysicalStateWarnings(context)}
 

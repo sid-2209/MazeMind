@@ -19,11 +19,15 @@ import { DebugPanel } from './DebugPanel';
 import { ControlsOverlay } from './ControlsOverlay';
 import { EmbeddingMetricsPanel } from './EmbeddingMetricsPanel';
 import { EmbeddingVisualizationPanel } from './EmbeddingVisualizationPanel';
+import { SurvivalPanel } from './SurvivalPanel'; // Week 3
+import { CurrentRunPanel } from './CurrentRunPanel'; // Week 4
+import { PlanningPanel } from './PlanningPanel'; // Week 5
 import { Agent } from '../agent/Agent';
 import { TimeManager } from '../core/TimeManager';
 import { Camera } from '../rendering/Camera';
 import { FogOfWar } from '../rendering/FogOfWar';
 import { Maze } from '../types';
+import { DataCollector } from '../systems/DataCollector'; // Week 4
 
 export class UIManager {
   private uiContainer: Container;
@@ -40,6 +44,9 @@ export class UIManager {
   private controlsOverlay!: ControlsOverlay;
   private embeddingMetricsPanel!: EmbeddingMetricsPanel;
   private embeddingVisualizationPanel!: EmbeddingVisualizationPanel;
+  private survivalPanel!: SurvivalPanel; // Week 3
+  private currentRunPanel!: CurrentRunPanel; // Week 4
+  private planningPanel!: PlanningPanel; // Week 5
 
   // Screen dimensions
   private screenWidth: number;
@@ -104,6 +111,18 @@ export class UIManager {
     this.embeddingVisualizationPanel = new EmbeddingVisualizationPanel(this.uiContainer, this.agent);
     await this.embeddingVisualizationPanel.init();
 
+    // Create survival panel (left-bottom, visible by default) - Week 3
+    this.survivalPanel = new SurvivalPanel(this.uiContainer, this.agent);
+    await this.survivalPanel.init();
+
+    // Create current run panel (top-right, initially hidden) - Week 4
+    this.currentRunPanel = new CurrentRunPanel(this.uiContainer);
+    await this.currentRunPanel.init();
+
+    // Create planning panel (left-bottom, initially hidden) - Week 5
+    this.planningPanel = new PlanningPanel(this.uiContainer, this.agent);
+    await this.planningPanel.init();
+
     // Position all UI elements
     this.positionUIElements();
 
@@ -142,6 +161,24 @@ export class UIManager {
     const vizY = (this.screenHeight - this.embeddingVisualizationPanel.getHeight()) / 2;
     this.embeddingVisualizationPanel.setPosition(vizX, vizY);
 
+    // Survival Panel - Left Bottom (Week 3)
+    const survivalX = padding;
+    const survivalY = this.screenHeight - this.survivalPanel.getHeight() - padding;
+    this.survivalPanel.setPosition(survivalX, survivalY);
+
+    // Planning Panel - Left Bottom, above survival panel (Week 5)
+    const planningX = padding;
+    const planningY = this.screenHeight -
+                      this.survivalPanel.getHeight() -
+                      this.planningPanel.getHeight() -
+                      padding * 2;
+    this.planningPanel.setPosition(planningX, planningY);
+
+    // Current Run Panel - Top Right (Week 4)
+    const runPanelX = this.screenWidth - this.currentRunPanel.getWidth() - padding;
+    const runPanelY = padding + this.debugPanel.getHeight() + padding; // Below debug panel
+    this.currentRunPanel.setPosition(runPanelX, runPanelY);
+
     // Controls Overlay - Centered
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
 
@@ -173,23 +210,49 @@ export class UIManager {
           // Toggle embedding visualization panel
           this.embeddingVisualizationPanel.toggle();
           break;
+
+        case 's':
+          // Toggle survival panel (Week 3)
+          this.survivalPanel.toggle();
+          break;
+
+        case 'r':
+          // Toggle current run panel (Week 4)
+          this.currentRunPanel.toggle();
+          break;
+
+        case 'p':
+          // Toggle planning panel (Week 5)
+          this.planningPanel.toggle();
+          break;
       }
     };
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, R: run stats, P: planning)');
   }
 
   /**
    * Update all UI components
    */
-  update(deltaTime: number): void {
+  update(deltaTime: number, gameTime: number = 0): void {
     // Update status panel
     this.statusPanel.update(deltaTime);
 
     // Update minimap
     this.miniMap.update(deltaTime);
+
+    // Update survival panel (Week 3)
+    this.survivalPanel.update(deltaTime);
+
+    // Update current run panel (Week 4)
+    this.currentRunPanel.update(deltaTime, gameTime);
+
+    // Update planning panel (Week 5, only if visible for performance)
+    if (this.planningPanel.isVisible()) {
+      this.planningPanel.update(deltaTime, gameTime);
+    }
 
     // Update debug panel (only if visible for performance)
     if (this.debugPanel.isVisible()) {
@@ -221,6 +284,13 @@ export class UIManager {
     this.positionUIElements();
 
     console.log(`🎨 UI resized to ${width}×${height}`);
+  }
+
+  /**
+   * Set data collector for current run panel (Week 4)
+   */
+  setDataCollector(collector: DataCollector | null): void {
+    this.currentRunPanel.setDataCollector(collector);
   }
 
   /**

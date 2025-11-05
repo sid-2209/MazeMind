@@ -13,6 +13,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Memory, Position } from '../types';
+import { DailyPlan, HourlyPlan, PlanPriority, PlanStatus } from '../types/planning';
 
 // Re-export Memory for convenience
 export type { Memory };
@@ -103,6 +104,115 @@ export class MemoryStream {
 
     this.addMemory(memory);
     return memory;
+  }
+
+  // ============================================
+  // Hierarchical Plan Storage (Week 5)
+  // ============================================
+
+  /**
+   * Store daily plan in memory with full hierarchy
+   */
+  storeDailyPlan(plan: DailyPlan): string {
+    const memory: Memory = {
+      id: uuidv4(),
+      description: `Daily Plan: ${plan.goal}`,
+      timestamp: Date.now(),
+      lastAccessed: Date.now(),
+      memoryType: 'plan',
+      importance: this.calculatePlanImportance(plan),
+      tags: ['plan', 'daily', `priority_${plan.priority}`],
+      location: undefined, // Plans are non-spatial
+    };
+
+    // Store metadata about plan structure
+    (memory as any).metadata = {
+      planId: plan.id,
+      planType: 'daily',
+      goal: plan.goal,
+      reasoning: plan.reasoning,
+      priority: plan.priority,
+      hourlyPlansCount: plan.hourlyPlans.length,
+      createdAt: plan.createdAt,
+      status: plan.status
+    };
+
+    this.addMemory(memory);
+    console.log(`📋 Daily plan stored in memory (ID: ${memory.id})`);
+    return memory.id;
+  }
+
+  /**
+   * Store hourly plan in memory
+   */
+  storeHourlyPlan(plan: HourlyPlan, dailyPlanId: string): string {
+    const memory: Memory = {
+      id: uuidv4(),
+      description: `Hourly Plan: ${plan.objective}`,
+      timestamp: Date.now(),
+      lastAccessed: Date.now(),
+      memoryType: 'plan',
+      importance: 7, // High importance
+      tags: ['plan', 'hourly', `daily_${dailyPlanId}`],
+      location: undefined,
+    };
+
+    (memory as any).metadata = {
+      planId: plan.id,
+      planType: 'hourly',
+      parentId: dailyPlanId,
+      objective: plan.objective,
+      actionsCount: plan.actions.length,
+      status: plan.status
+    };
+
+    this.addMemory(memory);
+    return memory.id;
+  }
+
+  /**
+   * Get active plans (not completed or abandoned)
+   */
+  getActivePlans(): Memory[] {
+    return this.memories.filter(m =>
+      m.memoryType === 'plan' &&
+      (m as any).metadata?.status !== PlanStatus.COMPLETED &&
+      (m as any).metadata?.status !== PlanStatus.ABANDONED
+    );
+  }
+
+  /**
+   * Get plans by type (daily, hourly)
+   */
+  getPlansByType(planType: 'daily' | 'hourly'): Memory[] {
+    return this.memories.filter(m =>
+      m.memoryType === 'plan' &&
+      (m as any).metadata?.planType === planType
+    );
+  }
+
+  /**
+   * Get plans by status
+   */
+  getPlansByStatus(status: PlanStatus): Memory[] {
+    return this.memories.filter(m =>
+      m.memoryType === 'plan' &&
+      (m as any).metadata?.status === status
+    );
+  }
+
+  /**
+   * Calculate plan importance based on priority
+   */
+  private calculatePlanImportance(plan: DailyPlan): number {
+    const priorityScores: Record<PlanPriority, number> = {
+      [PlanPriority.CRITICAL]: 10,
+      [PlanPriority.HIGH]: 8,
+      [PlanPriority.MEDIUM]: 6,
+      [PlanPriority.LOW]: 4
+    };
+
+    return priorityScores[plan.priority] || 6;
   }
 
   /**

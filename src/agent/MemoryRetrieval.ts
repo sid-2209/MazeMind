@@ -43,9 +43,10 @@ export class MemoryRetrieval {
    * Retrieve top-K most relevant memories for a query
    * @param query - Natural language query (e.g., "Where did I see food?")
    * @param k - Number of memories to retrieve (default: 10)
+   * @param stressModifier - Stress modifier (0.5-1.0) affects retrieval quality (Week 3)
    * @returns Sorted array of retrieval results with scores
    */
-  async retrieve(query: string, k: number = MEMORY_CONFIG.retrievalTopK): Promise<RetrievalResult[]> {
+  async retrieve(query: string, k: number = MEMORY_CONFIG.retrievalTopK, stressModifier: number = 1.0): Promise<RetrievalResult[]> {
     const memories = this.memoryStream.getAllMemories();
 
     if (memories.length === 0) {
@@ -65,10 +66,21 @@ export class MemoryRetrieval {
       const relevanceScore = await this.calculateRelevanceScore(memory, queryEmbedding);
 
       // Combined score
-      const combinedScore =
+      let combinedScore =
         this.recencyWeight * recencyScore +
         this.importanceWeight * importanceScore +
         this.relevanceWeight * relevanceScore;
+
+      // Apply stress modifier (Week 3)
+      // High stress degrades retrieval quality
+      combinedScore *= stressModifier;
+
+      // Under high stress (modifier < 0.8), add noise to simulate cognitive degradation
+      if (stressModifier < 0.8) {
+        const noiseLevel = (1 - stressModifier) * 0.3; // 0-0.15 range
+        const noise = (Math.random() - 0.5) * noiseLevel;
+        combinedScore += noise;
+      }
 
       scoredMemories.push({
         memory,

@@ -25,6 +25,11 @@ import { EmbeddingProvider } from '../services/EmbeddingService'; // NEW: Embedd
 import { LLMService, LLMProvider } from '../services/LLMService'; // NEW: Multi-provider support
 import { DecisionMaker } from './DecisionMaker'; // NEW in Days 3-4
 import { ReflectionSystem } from './ReflectionSystem'; // NEW in Days 3-4
+import { ResourceManager } from '../systems/ResourceManager'; // Week 3
+import { StressManager } from '../systems/StressManager'; // Week 3
+import { Item, getItemDescription, getItemName } from '../entities/Item'; // Week 3
+import { PlanningSystem } from '../systems/PlanningSystem'; // Week 5
+import { DailyPlan, ActionPlan, PlanningContext } from '../types/planning'; // Week 5
 
 export class Agent {
   // State
@@ -53,7 +58,17 @@ export class Agent {
   // Decision system (NEW in Days 3-4)
   private decisionMaker: DecisionMaker | null = null;
   private reflectionSystem: ReflectionSystem | null = null; // Days 3-4
-  
+
+  // Planning system (Week 5)
+  private planningSystem: PlanningSystem | null = null;
+
+  // Survival systems (Week 3)
+  private resourceManager: ResourceManager;
+  private stressManager: StressManager;
+  private itemGenerator: any = null; // Will be set by Game during initialization
+  private onDeathCallback?: (agent: Agent) => void;
+  private onBreakdownCallback?: (agent: Agent) => void;
+
   constructor(maze: Maze, startTile: Position) {
     this.maze = maze;
     this.tilePosition = { ...startTile };
@@ -105,9 +120,14 @@ export class Agent {
     const initialObs = `I've been placed in a maze at position (${startTile.x}, ${startTile.y}). This is the entrance. I must find the exit to survive. Elena is waiting for me.`;
     this.memoryStream.addObservation(initialObs, 9, ['start', 'motivation', 'goal'], this.currentPosition);
 
+    // Initialize survival systems (Week 3)
+    this.resourceManager = new ResourceManager();
+    this.stressManager = new StressManager();
+
     console.log(`👤 Agent "${this.state.name}" created at tile (${startTile.x}, ${startTile.y})`);
     console.log(`   World position: (${this.currentPosition.x}, ${this.currentPosition.y})`);
     console.log(`🧠 Memory system initialized with ${this.memoryStream.getMemoryCount()} memories`);
+    console.log(`❤️  Survival systems initialized (Resources: 100%, Stress: 0%)`);
   }
   
   /**
@@ -137,8 +157,9 @@ export class Agent {
   /**
    * Update agent state (called every frame)
    * @param deltaTime - Time since last frame (seconds)
+   * @param timeScale - Time scale multiplier (default: 1)
    */
-  update(deltaTime: number): void {
+  update(deltaTime: number, timeScale: number = 1): void {
     // Update movement if moving
     if (this.state.isMoving && this.targetPosition) {
       // Calculate distance to move this frame
@@ -159,6 +180,9 @@ export class Agent {
         this.moveProgress = 1;
 
         console.log(`✓ Arrived at tile (${this.tilePosition.x}, ${this.tilePosition.y})`);
+
+        // Check for items at this tile (Week 3)
+        this.tryConsumeNearbyItem();
       } else {
         // Move toward target
         const ratio = moveDistance / distance;
@@ -173,6 +197,30 @@ export class Agent {
 
       // Update state position
       this.state.position = { ...this.currentPosition };
+    }
+
+    // Update survival resources (Week 3)
+    this.resourceManager.update(deltaTime, timeScale);
+    const survivalState = this.resourceManager.getState();
+
+    // Update agent state with current resources
+    this.state.hunger = survivalState.hunger;
+    this.state.thirst = survivalState.thirst;
+    this.state.energy = survivalState.energy;
+
+    // Calculate stress (Week 3)
+    const explorationTime = survivalState.survivalTime;
+    const stressLevel = this.stressManager.calculateStress(survivalState, explorationTime);
+    this.state.stress = stressLevel;
+
+    // Check for death (Week 3)
+    if (survivalState.isDead && this.state.isAlive) {
+      this.handleDeath();
+    }
+
+    // Check for mental breakdown (Week 3)
+    if (this.stressManager.hasMentalBreakdown() && this.state.isAlive) {
+      this.handleMentalBreakdown();
     }
 
     // Generate observations (NEW in Week 2)
@@ -469,6 +517,14 @@ export class Agent {
       }
     );
     console.log('💭 ReflectionSystem initialized');
+
+    // Initialize PlanningSystem (Week 5)
+    this.planningSystem = new PlanningSystem(
+      this,
+      this.llmService,
+      this.memoryStream
+    );
+    console.log('📋 PlanningSystem initialized');
   }
 
   /**
@@ -537,6 +593,280 @@ export class Agent {
    */
   getAnthropicService(): AnthropicService | null {
     return this.anthropicService;
+  }
+
+  // ============================================
+  // Planning System (Week 5)
+  // ============================================
+
+  /**
+   * Get the planning system
+   */
+  getPlanningSystem(): PlanningSystem | null {
+    return this.planningSystem;
+  }
+
+  /**
+   * Get current planning context for plan generation
+   */
+  getPlanningContext(): PlanningContext {
+    const survivalState = this.resourceManager.getState();
+    const recentMemories = this.memoryStream
+      .getMemoriesByType('observation')
+      .slice(-5)
+      .map(m => m.description);
+
+    const recentReflections = this.memoryStream
+      .getMemoriesByType('reflection')
+      .slice(-3)
+      .map(m => m.description);
+
+    // Get items from item generator if available
+    const knownItems = this.itemGenerator
+      ? this.itemGenerator.getAllItems().filter((item: Item) => !item.consumed).map((item: Item) => ({
+          type: getItemName(item.type),
+          position: item.position
+        }))
+      : [];
+
+    // Get exploration progress - stub for now (will be enhanced with fog of war)
+    const explorationProgress = 0.3; // Placeholder
+
+    return {
+      survivalState: {
+        hunger: survivalState.hunger,
+        thirst: survivalState.thirst,
+        energy: survivalState.energy,
+        stress: this.state.stress
+      },
+      currentPosition: this.getTilePosition(),
+      explorationProgress,
+      knownItems,
+      recentMemories,
+      recentReflections,
+      gameTime: 0, // Will be passed from Game
+      timeOfDay: 'morning' // Placeholder - will be enhanced with time system
+    };
+  }
+
+  /**
+   * Get current plan
+   */
+  getCurrentPlan(): DailyPlan | null {
+    return this.planningSystem?.getCurrentDailyPlan() || null;
+  }
+
+  /**
+   * Get current action from plan
+   */
+  getCurrentPlannedAction(gameTime: number): ActionPlan | null {
+    return this.planningSystem?.getCurrentAction(gameTime) || null;
+  }
+
+  /**
+   * Trigger re-planning
+   */
+  async replan(reason: string, gameTime: number): Promise<void> {
+    if (!this.planningSystem) {
+      console.warn('⚠️  Planning system not initialized');
+      return;
+    }
+
+    const context = this.getPlanningContext();
+    context.gameTime = gameTime;
+    await this.planningSystem.replan(reason, context);
+  }
+
+  /**
+   * Initialize daily plan (called at game start)
+   */
+  async initializePlan(gameTime: number): Promise<void> {
+    if (!this.planningSystem) {
+      console.warn('⚠️  Planning system not initialized');
+      return;
+    }
+
+    console.log('📋 Initializing daily plan...');
+    const context = this.getPlanningContext();
+    context.gameTime = gameTime;
+
+    await this.planningSystem.generateDailyPlan(context);
+    await this.planningSystem.decomposeInitialPlans(context);
+  }
+
+  // ============================================
+  // Survival Systems (Week 3)
+  // ============================================
+
+  /**
+   * Set item generator reference (called by Game during initialization)
+   */
+  setItemGenerator(itemGenerator: any): void {
+    this.itemGenerator = itemGenerator;
+  }
+
+  /**
+   * Set death callback (called by Game)
+   */
+  setDeathCallback(callback: (agent: Agent) => void): void {
+    this.onDeathCallback = callback;
+  }
+
+  /**
+   * Set breakdown callback (called by Game)
+   */
+  setBreakdownCallback(callback: (agent: Agent) => void): void {
+    this.onBreakdownCallback = callback;
+  }
+
+  /**
+   * Try to consume item at current tile
+   */
+  private tryConsumeNearbyItem(): void {
+    if (!this.itemGenerator) return;
+
+    const item = this.itemGenerator.getItemAtTile(this.tilePosition.x, this.tilePosition.y);
+
+    if (item && !item.consumed) {
+      this.consumeItem(item);
+    }
+  }
+
+  /**
+   * Consume an item and restore resources
+   */
+  private consumeItem(item: Item): void {
+    if (!this.itemGenerator) return;
+
+    // Consume item
+    this.itemGenerator.consumeItem(item.id);
+
+    // Restore resources
+    this.resourceManager.restore({
+      hunger: item.hungerRestore,
+      thirst: item.thirstRestore,
+      energy: item.energyRestore
+    });
+
+    // Determine urgency level
+    const isCritical = this.resourceManager.isCritical();
+    const urgency = isCritical ? 'desperately' : 'gratefully';
+
+    // Add consumption memory
+    const description = getItemDescription(item, this.state.name, urgency);
+    const importance = this.calculateConsumptionImportance(item);
+
+    this.memoryStream.addObservation(
+      description,
+      importance,
+      ['survival', 'consumption', item.type],
+      this.currentPosition
+    );
+
+    console.log(`🍴 ${this.state.name} consumed ${getItemName(item.type)}`);
+  }
+
+  /**
+   * Calculate importance of consumption event
+   * More urgent needs result in higher importance scores
+   */
+  private calculateConsumptionImportance(item: Item): number {
+    const urgentNeed = this.resourceManager.getMostUrgentNeed();
+
+    // High importance if consuming item for urgent need
+    if (urgentNeed === 'thirst' && item.thirstRestore > 0) return 9;
+    if (urgentNeed === 'hunger' && item.hungerRestore > 0) return 9;
+    if (urgentNeed === 'energy' && item.energyRestore > 0) return 8;
+
+    // Medium importance for preventative consumption
+    return 5;
+  }
+
+  /**
+   * Handle agent death
+   */
+  private handleDeath(): void {
+    const survivalState = this.resourceManager.getState();
+    const cause = survivalState.hunger === 0 ? 'starvation' :
+                  survivalState.thirst === 0 ? 'dehydration' :
+                  'exhaustion';
+
+    console.log(`💀 ${this.state.name} has died from ${cause}`);
+
+    // Mark as dead
+    this.state.isAlive = false;
+
+    // Add death memory
+    this.memoryStream.addObservation(
+      `${this.state.name} succumbed to ${cause}`,
+      10,
+      ['survival', 'death', cause],
+      this.currentPosition
+    );
+
+    // Stop movement
+    this.targetPosition = null;
+    this.state.isMoving = false;
+
+    // Notify game
+    if (this.onDeathCallback) {
+      this.onDeathCallback(this);
+    }
+  }
+
+  /**
+   * Handle mental breakdown
+   */
+  private handleMentalBreakdown(): void {
+    console.log(`🧠 ${this.state.name} suffered a mental breakdown`);
+
+    // Mark as not alive (breakdown = functional death)
+    this.state.isAlive = false;
+
+    // Add breakdown memory
+    this.memoryStream.addObservation(
+      `${this.state.name} collapsed from overwhelming stress and exhaustion`,
+      10,
+      ['survival', 'breakdown', 'stress'],
+      this.currentPosition
+    );
+
+    // Stop movement
+    this.targetPosition = null;
+    this.state.isMoving = false;
+
+    // Notify game
+    if (this.onBreakdownCallback) {
+      this.onBreakdownCallback(this);
+    }
+  }
+
+  /**
+   * Get resource manager
+   */
+  getResourceManager(): ResourceManager {
+    return this.resourceManager;
+  }
+
+  /**
+   * Get stress manager
+   */
+  getStressManager(): StressManager {
+    return this.stressManager;
+  }
+
+  /**
+   * Get survival state
+   */
+  getSurvivalState() {
+    return this.resourceManager.getState();
+  }
+
+  /**
+   * Get stress level
+   */
+  getStressLevel(): number {
+    return this.stressManager.getStressLevel();
   }
 
   // ============================================
