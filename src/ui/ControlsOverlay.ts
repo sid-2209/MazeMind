@@ -85,6 +85,8 @@ export class ControlsOverlay {
         { key: 'P', description: 'Toggle planning panel' },
         { key: 'C', description: 'Toggle current run panel' },
         { key: 'D', description: 'Toggle dialogue panel' },
+        { key: 'F', description: 'Toggle reflection tree' },
+        { key: 'G', description: 'Toggle location tree' },
         { key: 'E', description: 'Toggle embedding metrics' },
         { key: 'M', description: 'Toggle memory viz' },
         { key: 'H', description: 'Toggle this help' },

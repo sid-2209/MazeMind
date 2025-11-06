@@ -23,15 +23,18 @@ import { CurrentRunPanel } from './CurrentRunPanel'; // Week 4
 import { PlanningPanel } from './PlanningPanel'; // Week 5
 import { MultiAgentPanel } from './MultiAgentPanel'; // Week 6
 import { ConversationPanel } from './ConversationPanel'; // Week 7
+import { ReflectionTreePanel } from './ReflectionTreePanel'; // Week 8
+import { LocationTreePanel } from './LocationTreePanel'; // Week 9
 import { Agent } from '../agent/Agent';
 import { TimeManager } from '../core/TimeManager';
+import type { WorldHierarchy } from '../systems/WorldHierarchy'; // Week 9
 import { Camera } from '../rendering/Camera';
 import { FogOfWar } from '../rendering/FogOfWar';
 import { Maze } from '../types';
 import { DataCollector } from '../systems/DataCollector'; // Week 4
 import { AgentManager } from '../systems/AgentManager'; // Week 6
 import { ConversationManager } from '../systems/ConversationManager'; // Week 7
-import { PanelDragManager } from '../utils/PanelDragManager'; // UI Improvements
+// import { PanelDragManager } from '../utils/PanelDragManager'; // UI Improvements - DISABLED
 
 export class UIManager {
   private uiContainer: Container;
@@ -52,13 +55,15 @@ export class UIManager {
   private planningPanel!: PlanningPanel; // Week 5
   private multiAgentPanel!: MultiAgentPanel; // Week 6
   private conversationPanel!: ConversationPanel; // Week 7
+  private reflectionTreePanel!: ReflectionTreePanel; // Week 8
+  private locationTreePanel!: LocationTreePanel; // Week 9
 
   // Screen dimensions
   private screenWidth: number;
   private screenHeight: number;
 
-  // Drag manager for panels
-  private panelDragManager: PanelDragManager;
+  // Drag manager for panels - DISABLED
+  // private panelDragManager: PanelDragManager;
 
   // Keyboard listeners
   private keyboardListener: ((e: KeyboardEvent) => void) | null = null;
@@ -82,8 +87,8 @@ export class UIManager {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
 
-    // Initialize drag manager
-    this.panelDragManager = new PanelDragManager();
+    // Initialize drag manager - DISABLED
+    // this.panelDragManager = new PanelDragManager();
 
     // Enable sortable children for z-index management
     this.uiContainer.sortableChildren = true;
@@ -141,11 +146,19 @@ export class UIManager {
     this.conversationPanel = new ConversationPanel(this.uiContainer);
     await this.conversationPanel.init();
 
+    // Create reflection tree panel (right side, initially hidden) - Week 8
+    this.reflectionTreePanel = new ReflectionTreePanel(this.uiContainer);
+    this.reflectionTreePanel.toggle(); // Start hidden
+
+    // Create location tree panel (left side, initially hidden) - Week 9
+    this.locationTreePanel = new LocationTreePanel(this.uiContainer);
+    this.locationTreePanel.toggle(); // Start hidden
+
     // Position all UI elements
     this.positionUIElements();
 
-    // Make panels draggable (UI Improvements)
-    this.setupDraggablePanels();
+    // Make panels draggable (UI Improvements) - DISABLED
+    // this.setupDraggablePanels();
 
     // Setup keyboard controls
     this.setupKeyboardControls();
@@ -190,14 +203,14 @@ export class UIManager {
    * Position all UI elements based on screen size
    */
   private positionUIElements(): void {
-    const padding = 16;
+    const padding = 16; // Increased from default to prevent clipping
 
-    // Survival Panel - Top Left corner (no padding for tight alignment)
-    this.survivalPanel.setPosition(0, 0);
+    // Survival Panel - Top Left corner (with padding to prevent clipping)
+    this.survivalPanel.setPosition(padding, padding);
 
-    // MiniMap - Bottom Right
-    const miniMapX = this.screenWidth - this.miniMap.getWidth() - padding;
-    const miniMapY = this.screenHeight - this.miniMap.getHeight() - padding;
+    // MiniMap - Bottom Right (with extra padding for border)
+    const miniMapX = this.screenWidth - this.miniMap.getWidth() - padding - 4; // Extra 4px for border + safety
+    const miniMapY = this.screenHeight - this.miniMap.getHeight() - padding - 4; // Extra 4px for border + safety
     this.miniMap.setPosition(miniMapX, miniMapY);
 
     // Debug Panel - Top Right
@@ -235,6 +248,16 @@ export class UIManager {
     const conversationY = this.screenHeight - this.conversationPanel.getHeight() - padding;
     this.conversationPanel.setPosition(conversationX, conversationY);
 
+    // Reflection Tree Panel - Right Side (Week 8)
+    const reflectionX = this.screenWidth - this.reflectionTreePanel.getWidth() - padding - 4; // Extra padding for border
+    const reflectionY = padding;
+    this.reflectionTreePanel.setPosition(reflectionX, reflectionY);
+
+    // Location Tree Panel - Left Side, offset from control sidebar (Week 9)
+    const locationX = 360; // Offset from control sidebar (320px + 40px gap)
+    const locationY = padding;
+    this.locationTreePanel.setPosition(locationX, locationY);
+
     // Controls Overlay - Centered
     this.controlsOverlay.setPosition(this.screenWidth, this.screenHeight);
 
@@ -242,102 +265,128 @@ export class UIManager {
   }
 
   /**
-   * Setup draggable functionality for all panels (UI Improvements)
+   * Setup draggable functionality for all panels (UI Improvements) - DISABLED
    */
-  private setupDraggablePanels(): void {
-    console.log('🖱️  Setting up draggable panels...');
+  // private setupDraggablePanels(): void {
+  //   console.log('🖱️  Setting up draggable panels...');
 
-    // Get panel containers (each panel has a container property)
-    const panels = [
-      { name: 'Debug Panel', container: (this.debugPanel as any).container, width: this.debugPanel.getWidth(), height: this.debugPanel.getHeight(), id: 'debug' },
-      { name: 'Survival Panel', container: (this.survivalPanel as any).container, width: 400, height: 300, id: 'survival' },
-      { name: 'MiniMap', container: (this.miniMap as any).container, width: this.miniMap.getWidth(), height: this.miniMap.getHeight(), id: 'minimap' },
-      { name: 'Embedding Metrics', container: (this.embeddingMetricsPanel as any).container, width: this.embeddingMetricsPanel.getWidth(), height: this.embeddingMetricsPanel.getHeight(), id: 'embedding-metrics' },
-      { name: 'Embedding Visualization', container: (this.embeddingVisualizationPanel as any).container, width: this.embeddingVisualizationPanel.getWidth(), height: this.embeddingVisualizationPanel.getHeight(), id: 'embedding-viz' },
-      { name: 'Planning Panel', container: (this.planningPanel as any).container, width: this.planningPanel.getWidth(), height: this.planningPanel.getHeight(), id: 'planning' },
-      { name: 'Current Run Panel', container: (this.currentRunPanel as any).container, width: this.currentRunPanel.getWidth(), height: this.currentRunPanel.getHeight(), id: 'current-run' },
-      { name: 'Multi-Agent Panel', container: (this.multiAgentPanel as any).container, width: this.multiAgentPanel.getWidth(), height: this.multiAgentPanel.getHeight(), id: 'multi-agent' },
-      { name: 'Conversation Panel', container: (this.conversationPanel as any).container, width: this.conversationPanel.getWidth(), height: this.conversationPanel.getHeight(), id: 'conversation' }
-    ];
+  //   // Get panel containers (each panel has a container property)
+  //   const panels = [
+  //     { name: 'Debug Panel', container: (this.debugPanel as any).container, width: this.debugPanel.getWidth(), height: this.debugPanel.getHeight(), id: 'debug' },
+  //     { name: 'Survival Panel', container: (this.survivalPanel as any).container, width: 400, height: 300, id: 'survival' },
+  //     { name: 'MiniMap', container: (this.miniMap as any).container, width: this.miniMap.getWidth(), height: this.miniMap.getHeight(), id: 'minimap' },
+  //     { name: 'Embedding Metrics', container: (this.embeddingMetricsPanel as any).container, width: this.embeddingMetricsPanel.getWidth(), height: this.embeddingMetricsPanel.getHeight(), id: 'embedding-metrics' },
+  //     { name: 'Embedding Visualization', container: (this.embeddingVisualizationPanel as any).container, width: this.embeddingVisualizationPanel.getWidth(), height: this.embeddingVisualizationPanel.getHeight(), id: 'embedding-viz' },
+  //     { name: 'Planning Panel', container: (this.planningPanel as any).container, width: this.planningPanel.getWidth(), height: this.planningPanel.getHeight(), id: 'planning' },
+  //     { name: 'Current Run Panel', container: (this.currentRunPanel as any).container, width: this.currentRunPanel.getWidth(), height: this.currentRunPanel.getHeight(), id: 'current-run' },
+  //     { name: 'Multi-Agent Panel', container: (this.multiAgentPanel as any).container, width: this.multiAgentPanel.getWidth(), height: this.multiAgentPanel.getHeight(), id: 'multi-agent' },
+  //     { name: 'Conversation Panel', container: (this.conversationPanel as any).container, width: this.conversationPanel.getWidth(), height: this.conversationPanel.getHeight(), id: 'conversation' },
+  //     { name: 'Reflection Tree Panel', container: (this.reflectionTreePanel as any).container, width: this.reflectionTreePanel.getWidth(), height: this.reflectionTreePanel.getHeight(), id: 'reflection-tree' },
+  //     { name: 'Location Tree Panel', container: (this.locationTreePanel as any).container, width: this.locationTreePanel.getWidth(), height: this.locationTreePanel.getHeight(), id: 'location-tree' }
+  //   ];
 
-    // Make each panel draggable
-    for (const panel of panels) {
-      try {
-        if (panel.container) {
-          this.panelDragManager.makeDraggable(panel.container, {
-            id: panel.id,
-            width: panel.width,
-            height: panel.height,
-            snapThreshold: 20,
-            persistPosition: true,
-            showDragHandle: true
-          });
-          console.log(`   ✅ ${panel.name} is now draggable`);
-        }
-      } catch (error) {
-        console.warn(`   ⚠️ Could not make ${panel.name} draggable:`, error);
-      }
-    }
+  //   // Make each panel draggable
+  //   for (const panel of panels) {
+  //     try {
+  //       if (panel.container) {
+  //         this.panelDragManager.makeDraggable(panel.container, {
+  //           id: panel.id,
+  //           width: panel.width,
+  //           height: panel.height,
+  //           snapThreshold: 20,
+  //           persistPosition: true,
+  //           showDragHandle: true
+  //         });
+  //         console.log(`   ✅ ${panel.name} is now draggable`);
+  //       }
+  //     } catch (error) {
+  //       console.warn(`   ⚠️ Could not make ${panel.name} draggable:`, error);
+  //     }
+  //   }
 
-    console.log('✅ All panels are now draggable!');
-  }
+  //   console.log('✅ All panels are now draggable!');
+  // }
 
   /**
    * Setup keyboard controls for UI
    */
   private setupKeyboardControls(): void {
     this.keyboardListener = (e: KeyboardEvent) => {
-      switch (e.key.toLowerCase()) {
+      const key = e.key.toLowerCase();
+      console.log(`⌨️ UIManager received key: '${key}'`);
+
+      switch (key) {
         case 'i':
           // Toggle debug panel
+          console.log('  → Toggling debug panel');
           this.debugPanel.toggle();
           break;
 
         case 'h':
           // Toggle controls overlay
+          console.log('  → Toggling controls overlay');
           this.controlsOverlay.toggle();
           break;
 
         case 'e':
           // Toggle embedding metrics panel
+          console.log('  → Toggling embedding metrics panel');
           this.embeddingMetricsPanel.toggle();
           break;
 
         case 'm':
           // Toggle embedding visualization panel
+          console.log('  → Toggling embedding visualization panel');
           this.embeddingVisualizationPanel.toggle();
           break;
 
         case 's':
           // Toggle survival panel (Week 3)
+          console.log('  → Toggling survival panel');
           this.survivalPanel.toggle();
           break;
 
         case 'c':
           // Toggle current run panel (Week 4) - Changed to 'C' to avoid conflict with regenerate maze
+          console.log('  → Toggling current run panel');
           this.currentRunPanel.toggle();
           break;
 
         case 'p':
           // Toggle planning panel (Week 5)
+          console.log('  → Toggling planning panel');
           this.planningPanel.toggle();
           break;
 
         case 'z':
           // Toggle multi-agent panel (Week 6) - Changed to 'Z' for easy access
+          console.log('  → Toggling multi-agent panel');
           this.multiAgentPanel.toggle();
           break;
 
         case 'd':
           // Toggle conversation panel (Week 7) - 'D' for Dialogue
+          console.log('  → Toggling conversation panel');
           this.conversationPanel.toggle();
+          break;
+
+        case 'f':
+          // Toggle reflection tree panel (Week 8) - 'F' for reFLection tree
+          console.log('  → Toggling reflection tree panel');
+          this.reflectionTreePanel.toggle();
+          break;
+
+        case 'g':
+          // Toggle location tree panel (Week 9) - 'G' for Geography/location tree
+          console.log('  → Toggling location tree panel');
+          this.locationTreePanel.toggle();
           break;
       }
     };
 
     window.addEventListener('keydown', this.keyboardListener);
 
-    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, C: current run, P: planning, Z: multi-agent, D: dialogue)');
+    console.log('   UI keyboard controls registered (I: debug, H: help, E: embeddings, M: memory viz, S: survival, C: current run, P: planning, Z: multi-agent, D: dialogue, F: reflection tree, G: location tree)');
   }
 
   /**
@@ -368,6 +417,16 @@ export class UIManager {
       this.conversationPanel.update(deltaTime, gameTime);
     }
 
+    // Update reflection tree panel (Week 8, only if visible for performance)
+    if (this.reflectionTreePanel.isVisible()) {
+      this.reflectionTreePanel.update(deltaTime);
+    }
+
+    // Update location tree panel (Week 9, only if visible for performance)
+    if (this.locationTreePanel.isVisible()) {
+      this.locationTreePanel.update(deltaTime);
+    }
+
     // Update debug panel (only if visible for performance)
     if (this.debugPanel.isVisible()) {
       this.debugPanel.update(deltaTime);
@@ -393,6 +452,9 @@ export class UIManager {
   handleResize(width: number, height: number): void {
     this.screenWidth = width;
     this.screenHeight = height;
+
+    // Update drag manager screen dimensions - DISABLED
+    // this.panelDragManager.updateScreenDimensions(width, height);
 
     // Reposition all UI elements
     this.positionUIElements();
@@ -421,6 +483,21 @@ export class UIManager {
    */
   setConversationManager(manager: ConversationManager | null): void {
     this.conversationPanel.setConversationManager(manager);
+  }
+
+  /**
+   * Set reflection system for reflection tree support (Week 8)
+   */
+  setReflectionSystem(reflectionSystem: any): void {
+    this.reflectionTreePanel.setReflectionSystem(reflectionSystem);
+  }
+
+  /**
+   * Set world hierarchy for location tree support (Week 9)
+   */
+  setWorldHierarchy(worldHierarchy: WorldHierarchy | null, agent: Agent | null): void {
+    this.locationTreePanel.setWorldHierarchy(worldHierarchy);
+    this.locationTreePanel.setAgent(agent);
   }
 
   /**

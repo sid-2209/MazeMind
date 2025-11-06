@@ -36,6 +36,12 @@ import { AgentManager } from '../systems/AgentManager'; // Week 6
 import { MultiAgentRenderer } from '../rendering/MultiAgentRenderer'; // Week 6
 import { PREDEFINED_AGENTS } from '../types/multi-agent'; // Week 6
 import { ConversationManager } from '../systems/ConversationManager'; // Week 7
+import { WorldHierarchy } from '../systems/WorldHierarchy'; // Week 9
+import { CrossSimulationMemorySystem } from '../systems/CrossSimulationMemorySystem'; // Cross-simulation learning
+import { DangerCommunicationSystem } from '../systems/DangerCommunicationSystem'; // Feature 2: Danger warnings
+import { MapSharingSystem } from '../systems/MapSharingSystem'; // Feature 3: Map sharing
+import { CooperativePlanningSystem } from '../systems/CooperativePlanningSystem'; // Feature 4: Cooperative planning
+import { RoleEmergenceSystem } from '../systems/RoleEmergenceSystem'; // Feature 5: Role emergence
 
 export class Game {
   // Core systems
@@ -62,6 +68,24 @@ export class Game {
   // Conversation system (Week 7)
   private conversationManager: ConversationManager | null = null;
 
+  // World hierarchy (Week 9)
+  private worldHierarchy: WorldHierarchy | null = null;
+
+  // Cross-simulation memory (Feature 1)
+  private crossSimMemorySystem: CrossSimulationMemorySystem | null = null;
+
+  // Danger communication (Feature 2)
+  private dangerCommSystem: DangerCommunicationSystem | null = null;
+
+  // Map sharing (Feature 3)
+  private mapSharingSystem: MapSharingSystem | null = null;
+
+  // Cooperative planning (Feature 4)
+  private cooperativePlanningSystem: CooperativePlanningSystem | null = null;
+
+  // Role emergence (Feature 5)
+  private roleEmergenceSystem: RoleEmergenceSystem | null = null;
+
   // Survival systems (Week 3)
   private itemGenerator: ItemGenerator | null = null;
   private itemRenderer: ItemRenderer | null = null;
@@ -69,6 +93,7 @@ export class Game {
   // Data collection (Week 4)
   private dataCollector: DataCollector | null = null;
   private gameTime: number = 0; // Track total game time
+  private gameStartTime: number = 0; // Track game start time (Feature 1)
 
   // Game state
   private maze: Maze | null = null;
@@ -102,8 +127,14 @@ export class Game {
       this.initTimeManager();
       await this.initRenderer();
       this.initInput();
+      await this.initWorldHierarchy();  // Week 9 - after maze generation
+      this.initCrossSimMemory();  // Feature 1 - before agent
+      this.initDangerComm();  // Feature 2 - before agent
+      this.initMapSharing();  // Feature 3 - before agent
       await this.initSurvivalSystems();  // Week 3 - before agent
-      await this.initAgent();
+      await this.initAgent();  // Initialize agents first
+      this.initCooperativePlanning();  // Feature 4 - after agents created
+      this.initRoleEmergence();  // Feature 5 - after agents created
       await this.initViewModes();  // Day 8
       await this.initUI();  // NEW in Day 9
       this.start();
@@ -190,6 +221,77 @@ export class Game {
     this.inputManager.init();
     this.setupControls();
     console.log('   Input ready');
+  }
+
+  /**
+   * Initialize world hierarchy (Week 9)
+   */
+  private async initWorldHierarchy(): Promise<void> {
+    if (!this.maze) {
+      throw new Error('Cannot initialize world hierarchy: maze not ready');
+    }
+
+    console.log('🌍 Initializing world hierarchy...');
+
+    this.worldHierarchy = new WorldHierarchy();
+    this.worldHierarchy.buildFromMaze(this.maze);
+
+    console.log('✅ World hierarchy initialized');
+  }
+
+  /**
+   * Initialize cross-simulation memory system (Feature 1)
+   */
+  private initCrossSimMemory(): void {
+    console.log('💾 Initializing cross-simulation memory system...');
+    this.crossSimMemorySystem = new CrossSimulationMemorySystem();
+    console.log('✅ Cross-simulation memory system initialized');
+  }
+
+  /**
+   * Initialize danger communication system (Feature 2)
+   */
+  private initDangerComm(): void {
+    console.log('⚠️  Initializing danger communication system...');
+    this.dangerCommSystem = new DangerCommunicationSystem();
+    console.log('✅ Danger communication system initialized');
+  }
+
+  /**
+   * Initialize map sharing system (Feature 3)
+   */
+  private initMapSharing(): void {
+    if (!this.maze) {
+      throw new Error('Cannot initialize map sharing: maze not ready');
+    }
+
+    console.log('🗺️  Initializing map sharing system...');
+    this.mapSharingSystem = new MapSharingSystem(this.maze);
+    console.log('✅ Map sharing system initialized');
+  }
+
+  /**
+   * Initialize cooperative planning system (Feature 4)
+   */
+  private initCooperativePlanning(): void {
+    // Get all agent IDs from predefined agents
+    const agentIds = PREDEFINED_AGENTS.slice(0, this.selectedAgentCount).map(a => a.id);
+
+    console.log('🤝 Initializing cooperative planning system...');
+    this.cooperativePlanningSystem = new CooperativePlanningSystem(agentIds);
+    console.log('✅ Cooperative planning system initialized');
+  }
+
+  /**
+   * Initialize role emergence system (Feature 5)
+   */
+  private initRoleEmergence(): void {
+    // Get all agent IDs from predefined agents
+    const agentIds = PREDEFINED_AGENTS.slice(0, this.selectedAgentCount).map(a => a.id);
+
+    console.log('🎭 Initializing role emergence system...');
+    this.roleEmergenceSystem = new RoleEmergenceSystem(agentIds);
+    console.log('✅ Role emergence system initialized');
   }
 
   /**
@@ -322,9 +424,24 @@ export class Game {
         }
       }
 
+      // Wire up world hierarchy (Week 9)
+      if (this.worldHierarchy) {
+        agent.setWorldHierarchy(this.worldHierarchy);
+      }
+
       // Initialize planning system
       if (agent.getPlanningSystem()) {
         await agent.initializePlan(this.gameTime);
+      }
+
+      // Load cross-simulation memories (Feature 1)
+      if (this.crossSimMemorySystem) {
+        this.crossSimMemorySystem.loadMemories(agent);
+      }
+
+      // Initialize map sharing for this agent (Feature 3)
+      if (this.mapSharingSystem) {
+        this.mapSharingSystem.initializeAgentMap(agent.getId());
       }
 
       console.log(`   ✅ ${agent.getName()}: Memory, AI, and planning initialized`);
@@ -338,6 +455,11 @@ export class Game {
     if (this.agentManager) {
       this.conversationManager = new ConversationManager(this.agentManager);
       console.log('💬 Conversation manager initialized');
+    }
+
+    // Wire danger communication system to agent manager (Feature 2)
+    if (this.agentManager && this.dangerCommSystem) {
+      console.log('⚠️  Danger communication wired to agents');
     }
 
     console.log('✅ All agents initialized');
@@ -410,6 +532,19 @@ export class Game {
     // Wire conversation manager to UI (Week 7)
     if (this.conversationManager) {
       this.uiManager.setConversationManager(this.conversationManager);
+    }
+
+    // Wire reflection system to UI (Week 8)
+    if (this.agent) {
+      const reflectionSystem = this.agent.getReflectionSystem();
+      if (reflectionSystem) {
+        this.uiManager.setReflectionSystem(reflectionSystem);
+      }
+    }
+
+    // Wire world hierarchy to UI (Week 9)
+    if (this.worldHierarchy) {
+      this.uiManager.setWorldHierarchy(this.worldHierarchy, this.agent);
     }
 
     console.log('✅ UI system initialized');
@@ -497,6 +632,7 @@ export class Game {
 
     this.isRunning = true;
     this.lastTime = performance.now();
+    this.gameStartTime = Date.now(); // Track simulation start time (Feature 1)
 
     this.app?.ticker.add(() => this.gameLoop());
   }
@@ -597,6 +733,28 @@ export class Game {
     // Update conversation manager (Week 7)
     if (this.conversationManager) {
       this.conversationManager.update(deltaTime, this.gameTime);
+    }
+
+    // Auto-share maps when agents are nearby (Feature 3)
+    if (this.mapSharingSystem && this.agentManager) {
+      const agents = this.agentManager.getAllAgents();
+      for (let i = 0; i < agents.length; i++) {
+        for (let j = i + 1; j < agents.length; j++) {
+          this.mapSharingSystem.autoShareOnProximity(agents[i], agents[j]);
+        }
+      }
+    }
+
+    // Update cooperative planning system (Feature 4)
+    if (this.cooperativePlanningSystem) {
+      this.cooperativePlanningSystem.updatePlans();
+    }
+
+    // Evaluate agent roles periodically (Feature 5)
+    if (this.roleEmergenceSystem && this.agentManager) {
+      for (const agent of this.agentManager.getAllAgents()) {
+        this.roleEmergenceSystem.evaluateRole(agent);
+      }
     }
 
     // Update view mode manager (Day 8)
@@ -859,15 +1017,38 @@ export class Game {
     // Determine cause of death
     const survivalState = agent.getSurvivalState();
     let outcome: SimulationOutcome;
+    let dangerType: 'STARVATION_ZONE' | 'EXHAUSTION_ZONE' | 'HEALTH_CRITICAL';
 
     if (survivalState.hunger === 0) {
       outcome = SimulationOutcome.DEATH_STARVATION;
+      dangerType = 'STARVATION_ZONE';
     } else if (survivalState.thirst === 0) {
       outcome = SimulationOutcome.DEATH_DEHYDRATION;
+      dangerType = 'STARVATION_ZONE'; // Treat dehydration as starvation zone
     } else if (survivalState.energy === 0) {
       outcome = SimulationOutcome.DEATH_EXHAUSTION;
+      dangerType = 'EXHAUSTION_ZONE';
     } else {
       outcome = SimulationOutcome.DEATH_STARVATION; // Fallback
+      dangerType = 'HEALTH_CRITICAL';
+    }
+
+    // Report danger at death location (Feature 2)
+    if (this.dangerCommSystem && this.agentManager) {
+      const warning = this.dangerCommSystem.reportDanger(
+        agent,
+        dangerType,
+        agent.getTilePosition(),
+        10, // Maximum severity - death occurred here
+        `${agent.getName()} died from ${outcome} at this location`,
+        true // causes death
+      );
+
+      // Broadcast to all living agents
+      const allAgents = this.agentManager.getAllAgents().filter(a => a.getState().isAlive);
+      if (allAgents.length > 0) {
+        this.dangerCommSystem.broadcastWarning(agent, warning, allAgents);
+      }
     }
 
     // Finalize metrics (Week 4)
@@ -879,6 +1060,9 @@ export class Game {
       console.log(`   Items Consumed: ${metrics.totalItemsConsumed}`);
       console.log(`   Tiles Explored: ${metrics.tilesExplored}`);
     }
+
+    // Save cross-simulation memories (Feature 1)
+    this.endSimulation(agent, 'DEATH', this.gameTime);
 
     // Stop autonomous mode
     if (this.autonomousController) {
@@ -895,7 +1079,7 @@ export class Game {
   /**
    * Handle agent mental breakdown
    */
-  private handleAgentBreakdown(_agent: Agent): void {
+  private handleAgentBreakdown(agent: Agent): void {
     console.log('🧠 Agent suffered mental breakdown - stopping autonomous mode');
 
     // Finalize metrics (Week 4)
@@ -906,6 +1090,9 @@ export class Game {
       console.log(`   Survival Time: ${metrics.survivalTime.toFixed(1)}s`);
       console.log(`   Final Stress: ${metrics.finalStress.toFixed(1)}%`);
     }
+
+    // Save cross-simulation memories (Feature 1)
+    this.endSimulation(agent, 'DEATH', this.gameTime);
 
     // Stop autonomous mode
     if (this.autonomousController) {
@@ -944,6 +1131,28 @@ export class Game {
 
     // Export as JSON
     ExportManager.exportRunJSON(metrics);
+  }
+
+  /**
+   * End simulation and save cross-simulation memories (Feature 1)
+   */
+  private endSimulation(agent: Agent, outcome: 'SUCCESS' | 'DEATH' | 'TIMEOUT', survivalTime: number): void {
+    if (!this.crossSimMemorySystem) {
+      return;
+    }
+
+    // Gather run metrics
+    const runMetrics = {
+      startTime: this.gameStartTime,
+      survivalTime,
+      resourcesCollected: 0, // TODO: Get from data collector when available
+      teammatesHelped: 0, // TODO: Track teammate help events
+    };
+
+    // Save memories
+    this.crossSimMemorySystem.saveMemories(agent, outcome, runMetrics);
+
+    console.log(`💾 Cross-simulation memories saved for ${agent.getName()}`);
   }
 
   /**

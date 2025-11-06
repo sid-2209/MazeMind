@@ -10,6 +10,7 @@ AGENT'S SITUATION:
 - Trapped in a maze, trying to find the exit
 - Must manage survival resources (hunger, thirst, energy)
 - Can explore, collect items (food, water, energy drinks), and search for exit
+- Can interact with objects (sit on furniture, sleep on beds, cook at stoves, read from books)
 - Has memory of past experiences and reflections
 
 CURRENT STATE:
@@ -20,6 +21,12 @@ Stress: {stress}%
 Position: ({x}, {y})
 Exploration Progress: {exploration}%
 
+CURRENT LOCATION (Week 9):
+{location_description}
+
+NEARBY OBJECTS & ACTIONS (Week 9):
+{nearby_objects}
+
 RECENT MEMORIES:
 {recent_memories}
 
@@ -28,19 +35,21 @@ RECENT REFLECTIONS:
 
 Create a high-level daily plan (one main goal for the next 24 hours of game time).
 Consider:
-1. Survival needs (if hunger/thirst/energy low, prioritize finding items)
-2. Exploration progress (systematically explore unmapped areas)
-3. Exit search (if survival stable, focus on finding exit)
-4. Past failures (learn from previous attempts)
+1. Survival needs (if hunger/thirst/energy low, prioritize finding items OR using objects like sinks/stoves)
+2. Energy/stress management (use furniture to rest if tired, read books to reduce stress)
+3. Exploration progress (systematically explore unmapped areas)
+4. Exit search (if survival stable, focus on finding exit)
+5. Environmental opportunities (take advantage of nearby objects and their capabilities)
+6. Past failures (learn from previous attempts)
 
 Respond in this format:
 GOAL: [One clear, specific daily goal]
-REASONING: [2-3 sentences explaining why this goal makes sense]
+REASONING: [2-3 sentences explaining why this goal makes sense given the environment]
 PRIORITY: [CRITICAL/HIGH/MEDIUM/LOW]
 
 Example:
-GOAL: Systematically explore the eastern section of the maze to find the exit
-REASONING: The western areas have been thoroughly explored without finding the exit. Survival resources are currently stable (hunger 75%, thirst 80%). It's time to push exploration eastward where the map shows unexplored corridors.
+GOAL: Rest in the Safe Room, then systematically explore the eastern section of the maze
+REASONING: Energy is low (35%) and there's a bed nearby in the Safe Room. After resting to restore energy, I can push exploration eastward where the map shows unexplored corridors. This balanced approach ensures survival while making progress toward the exit.
 PRIORITY: HIGH`;
 
 // ============================================
@@ -115,6 +124,19 @@ export function buildDailyPlanPrompt(context: PlanningContext): string {
   prompt = prompt.replace('{x}', context.currentPosition.x.toString());
   prompt = prompt.replace('{y}', context.currentPosition.y.toString());
   prompt = prompt.replace('{exploration}', (context.explorationProgress * 100).toFixed(0));
+
+  // Week 9: Format location description
+  const locationText = context.locationDescription || 'Unknown location in the maze';
+  prompt = prompt.replace('{location_description}', locationText);
+
+  // Week 9: Format nearby objects and actions
+  let objectsText = 'No interactive objects nearby';
+  if (context.nearbyObjects && context.nearbyObjects.length > 0) {
+    objectsText = context.nearbyObjects
+      .map(obj => `- ${obj.name}: can ${obj.capabilities.join(', ')} (${obj.effects.join(', ')})`)
+      .join('\n');
+  }
+  prompt = prompt.replace('{nearby_objects}', objectsText);
 
   // Format recent memories
   const memoriesText = context.recentMemories.length > 0

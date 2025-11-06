@@ -1,0 +1,754 @@
+// src/systems/CrossSimulationMemorySystem.ts
+/**
+ * Cross-Simulation Memory System
+ *
+ * Manages persistent memories across simulation runs, enabling agents to:
+ * - Remember discovered paths and maze layouts
+ * - Recall danger zones and dead ends
+ * - Track successful/failed strategies
+ * - Learn from social interactions
+ * - Improve performance over time
+ */
+
+import {
+  CrossSimulationMemory,
+  SimulationRun,
+  PathInfo,
+  DangerInfo,
+  Strategy,
+  MazeKnowledge,
+  PerformanceMetrics,
+  SocialKnowledge,
+  SerializableCrossSimMemory
+} from '../types/cross-simulation';
+import { Agent } from '../agent/Agent';
+import { Memory } from '../types/index';
+import { Position } from '../types/index';
+
+export class CrossSimulationMemorySystem {
+  private storageKey: string = 'maze_mind_cross_sim_memories';
+  private cache: Map<string, CrossSimulationMemory> = new Map();
+  private useLocalStorage: boolean = true; // Browser-based storage
+
+  constructor() {
+    console.log('🧠 CrossSimulationMemorySystem initialized');
+  }
+
+  /**
+   * Load agent's cross-simulation memory at start of new run
+   */
+  loadMemories(agent: Agent): void {
+    const agentId = agent.getId();
+    const agentName = agent.getName();
+
+    try {
+      // Try to load from storage
+      const memory = this.loadFromStorage(agentId);
+
+      if (memory) {
+        console.log(`✅ Loaded ${memory.performance.totalRuns} previous runs for ${agentName}`);
+
+        // Inherit accumulated knowledge
+        this.inheritKnowledge(agent, memory);
+
+        // Generate reflections on past experiences
+        this.generatePastReflections(agent, memory);
+
+        // Cache for quick access
+        this.cache.set(agentId, memory);
+      } else {
+        console.log(`📝 No previous memories found for ${agentName} (first run)`);
+        // Initialize empty memory
+        const newMemory = this.createEmptyMemory(agentId, agentName);
+        this.cache.set(agentId, newMemory);
+      }
+    } catch (error) {
+      console.error(`❌ Error loading memories for ${agentId}:`, error);
+      // Initialize empty on error
+      this.cache.set(agentId, this.createEmptyMemory(agentId, agentName));
+    }
+  }
+
+  /**
+   * Save agent's experiences at end of simulation
+   */
+  saveMemories(
+    agent: Agent,
+    outcome: SimulationRun['outcome'],
+    runMetrics: {
+      startTime: number;
+      survivalTime: number;
+      resourcesCollected: number;
+      teammatesHelped: number;
+    }
+  ): void {
+    const agentId = agent.getId();
+    const agentName = agent.getName();
+    const memory = this.cache.get(agentId) || this.createEmptyMemory(agentId, agentName);
+
+    // Create simulation run record
+    const run: SimulationRun = {
+      runId: `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      startTime: runMetrics.startTime,
+      endTime: Date.now(),
+      outcome,
+      finalPosition: agent.getTilePosition(),
+      survivalTime: runMetrics.survivalTime,
+      resourcesCollected: runMetrics.resourcesCollected,
+      teammatesHelped: runMetrics.teammatesHelped,
+      keyLearnings: this.extractKeyLearnings(agent, outcome)
+    };
+
+    memory.simulationHistory.push(run);
+
+    // Keep only last 20 runs to prevent memory bloat
+    if (memory.simulationHistory.length > 20) {
+      memory.simulationHistory = memory.simulationHistory.slice(-20);
+    }
+
+    // Update maze knowledge
+    this.updateMazeKnowledge(memory, agent);
+
+    // Update strategies
+    this.updateStrategies(memory, agent, outcome, runMetrics.survivalTime);
+
+    // Update performance metrics
+    this.updatePerformance(memory, run);
+
+    // Update social knowledge
+    this.updateSocialKnowledge(memory, agent);
+
+    // Update metadata
+    memory.lastSimulationDate = Date.now();
+    memory.totalExperienceHours += runMetrics.survivalTime / 3600000; // ms to hours
+
+    // Save to storage
+    this.saveToStorage(agentId, memory);
+
+    console.log(`💾 Saved memories for ${agentName} (Run #${memory.performance.totalRuns})`);
+    console.log(`   Outcome: ${outcome}, Survival: ${(runMetrics.survivalTime / 60000).toFixed(1)}min`);
+  }
+
+  /**
+   * Get memory for agent (for inspection)
+   */
+  getMemory(agentId: string): CrossSimulationMemory | undefined {
+    return this.cache.get(agentId);
+  }
+
+  /**
+   * Inherit knowledge from previous runs
+   */
+  private inheritKnowledge(agent: Agent, memory: CrossSimulationMemory): void {
+    const knowledge = memory.mazeKnowledge;
+    let inheritedCount = 0;
+
+    // Add discovered paths
+    knowledge.discoveredPaths.forEach(pathInfo => {
+      agent.addMemory({
+        type: 'OBSERVATION',
+        description: `From past runs: I know a path from (${pathInfo.from.x},${pathInfo.from.y}) to (${pathInfo.to.x},${pathInfo.to.y}). ` +
+                     `Used ${pathInfo.timesUsed} times with ${(pathInfo.successRate * 100).toFixed(0)}% success.`,
+        importance: Math.min(9, 5 + pathInfo.successRate * 3),
+        timestamp: Date.now(),
+        location: pathInfo.from,
+        tags: ['cross-simulation', 'path', 'inherited']
+      });
+      inheritedCount++;
+    });
+
+    // Warn about danger zones (prioritize by severity)
+    const sortedDangers = [...knowledge.dangerZones].sort((a, b) => {
+      const scoreA = a.severity + a.deathsAtLocation * 2;
+      const scoreB = b.severity + b.deathsAtLocation * 2;
+      return scoreB - scoreA;
+    });
+
+    sortedDangers.slice(0, 10).forEach(danger => {
+      const importance = Math.min(10, danger.severity + danger.deathsAtLocation);
+      agent.addMemory({
+        type: 'OBSERVATION',
+        description: `⚠️ DANGER from past runs: ${danger.type} at (${danger.location.x},${danger.location.y}). ` +
+                     `${danger.description} Deaths here: ${danger.deathsAtLocation}`,
+        importance,
+        timestamp: Date.now(),
+        location: danger.location,
+        tags: ['cross-simulation', 'danger', 'warning', 'inherited']
+      });
+      inheritedCount++;
+    });
+
+    // Remember safe rooms
+    knowledge.safeRooms.forEach(safeRoom => {
+      agent.addMemory({
+        type: 'OBSERVATION',
+        description: `From past runs: Safe room at (${safeRoom.x},${safeRoom.y}). Good place to rest and recover.`,
+        importance: 6,
+        timestamp: Date.now(),
+        location: safeRoom,
+        tags: ['cross-simulation', 'safe-room', 'inherited']
+      });
+      inheritedCount++;
+    });
+
+    // Remember resource locations
+    Object.entries(knowledge.resourceLocations).forEach(([itemType, locations]) => {
+      locations.slice(0, 5).forEach(loc => { // Top 5 per type
+        agent.addMemory({
+          type: 'OBSERVATION',
+          description: `From past runs: Found ${itemType} at (${loc.x},${loc.y}).`,
+          importance: 5,
+          timestamp: Date.now(),
+          location: loc,
+          tags: ['cross-simulation', 'resource', itemType.toLowerCase(), 'inherited']
+        });
+        inheritedCount++;
+      });
+    });
+
+    // Remember exit locations (VERY important!)
+    knowledge.exitLocations.forEach(exitInfo => {
+      agent.addMemory({
+        type: 'OBSERVATION',
+        description: `🚪 EXIT LOCATION from past runs: (${exitInfo.location.x},${exitInfo.location.y})! ` +
+                     (exitInfo.requiresKey ? 'Requires key. ' : '') +
+                     (exitInfo.requiresMultipleAgents ? 'Needs team activation. ' : '') +
+                     `Successfully exited ${exitInfo.timesExited} times.`,
+        importance: 10,
+        timestamp: Date.now(),
+        location: exitInfo.location,
+        tags: ['cross-simulation', 'exit', 'critical', 'inherited']
+      });
+      inheritedCount++;
+    });
+
+    console.log(`  📖 Inherited ${inheritedCount} memories from past runs`);
+  }
+
+  /**
+   * Generate reflections based on past experiences
+   */
+  private generatePastReflections(agent: Agent, memory: CrossSimulationMemory): void {
+    const perf = memory.performance;
+    let reflectionCount = 0;
+
+    // Overall performance reflection
+    if (perf.totalRuns > 0) {
+      const successRate = (perf.successfulExits / perf.totalRuns) * 100;
+      const advice = successRate < 30 ? 'I need to drastically change my approach' :
+                     successRate < 60 ? 'I should refine my strategy' :
+                     'I should maintain my successful approach';
+
+      agent.addMemory({
+        type: 'REFLECTION',
+        description: `I've attempted this maze ${perf.totalRuns} times before. ` +
+                     `Success rate: ${successRate.toFixed(1)}%. ${advice}.`,
+        importance: 8,
+        timestamp: Date.now(),
+        tags: ['cross-simulation', 'reflection', 'performance']
+      });
+      reflectionCount++;
+    }
+
+    // Strategy reflection
+    const bestStrategy = memory.strategies.successful
+      .sort((a, b) => b.successRate - a.successRate)[0];
+
+    if (bestStrategy && bestStrategy.successRate > 0.5) {
+      agent.addMemory({
+        type: 'REFLECTION',
+        description: `My most successful strategy is: ${bestStrategy.name}. ` +
+                     `${bestStrategy.description} Success: ${(bestStrategy.successRate * 100).toFixed(0)}%`,
+        importance: 9,
+        timestamp: Date.now(),
+        tags: ['cross-simulation', 'reflection', 'strategy']
+      });
+      reflectionCount++;
+    }
+
+    // Death location reflection (most dangerous area)
+    if (perf.deathLocations.size > 0) {
+      const deathEntries = Array.from(perf.deathLocations.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+      if (deathEntries.length > 0) {
+        const [locationKey, deathCount] = deathEntries[0];
+        const [x, y] = locationKey.split(',').map(Number);
+
+        agent.addMemory({
+          type: 'REFLECTION',
+          description: `⚠️ I've died ${deathCount} times at (${x},${y}). ` +
+                       `This is an extremely dangerous area - I must be very careful or avoid it entirely.`,
+          importance: 10,
+          timestamp: Date.now(),
+          location: { x, y },
+          tags: ['cross-simulation', 'reflection', 'danger', 'critical']
+        });
+        reflectionCount++;
+      }
+    }
+
+    // Social learning reflection
+    const trustLevels = memory.socialKnowledge.trustLevels;
+    if (trustLevels.size > 0) {
+      const trustEntries = Array.from(trustLevels.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+      if (trustEntries.length > 0 && trustEntries[0][1] > 0.6) {
+        const [agentId, trustLevel] = trustEntries[0];
+        const learnedKnowledge = memory.socialKnowledge.learnedFromOthers.get(agentId);
+
+        agent.addMemory({
+          type: 'REFLECTION',
+          description: `I trust ${agentId} highly (${(trustLevel * 100).toFixed(0)}%). ` +
+                       `Their advice has been valuable in past runs. I should listen to them.`,
+          importance: 7,
+          timestamp: Date.now(),
+          tags: ['cross-simulation', 'reflection', 'social']
+        });
+        reflectionCount++;
+      }
+    }
+
+    // Learning trajectory reflection
+    if (perf.totalRuns >= 3) {
+      const recent3 = memory.simulationHistory.slice(-3);
+      const recentSuccesses = recent3.filter(r => r.outcome === 'SUCCESS').length;
+      const trend = recentSuccesses >= 2 ? 'improving' :
+                    recentSuccesses === 1 ? 'inconsistent' : 'struggling';
+
+      agent.addMemory({
+        type: 'REFLECTION',
+        description: `My recent performance is ${trend}. ` +
+                     `${recentSuccesses}/3 recent attempts were successful. ` +
+                     `${trend === 'improving' ? 'I should keep doing what works.' :
+                       'I need to analyze what went wrong and adjust.'}`,
+        importance: 7,
+        timestamp: Date.now(),
+        tags: ['cross-simulation', 'reflection', 'trend']
+      });
+      reflectionCount++;
+    }
+
+    console.log(`  🧠 Generated ${reflectionCount} reflections from past experiences`);
+  }
+
+  /**
+   * Update maze knowledge based on current run
+   */
+  private updateMazeKnowledge(memory: CrossSimulationMemory, agent: Agent): void {
+    const allMemories = agent.getMemoryStream().getAllMemories();
+
+    // Extract danger discoveries
+    const dangerMemories = allMemories.filter(m =>
+      m.description.toLowerCase().includes('danger') ||
+      m.description.toLowerCase().includes('trap') ||
+      m.description.toLowerCase().includes('died') ||
+      m.importance >= 9
+    );
+
+    dangerMemories.forEach(mem => {
+      if (mem.location) {
+        // Check if danger already known
+        const existing = memory.mazeKnowledge.dangerZones.find(d =>
+          d.location.x === mem.location!.x && d.location.y === mem.location!.y
+        );
+
+        if (existing) {
+          existing.witnessedCount++;
+          existing.lastSeen = Date.now();
+          if (mem.description.includes('died')) {
+            existing.deathsAtLocation++;
+          }
+        } else {
+          // Add new danger
+          memory.mazeKnowledge.dangerZones.push({
+            location: mem.location,
+            type: this.inferDangerType(mem.description),
+            severity: mem.importance,
+            description: mem.description.substring(0, 200),
+            witnessedCount: 1,
+            deathsAtLocation: mem.description.includes('died') ? 1 : 0,
+            firstSeen: Date.now(),
+            lastSeen: Date.now()
+          });
+        }
+      }
+    });
+
+    // Extract resource locations
+    const resourceMemories = allMemories.filter(m =>
+      m.tags.some(t => ['food', 'water', 'energy'].includes(t.toLowerCase())) ||
+      m.description.toLowerCase().includes('found food') ||
+      m.description.toLowerCase().includes('found water')
+    );
+
+    resourceMemories.forEach(mem => {
+      if (mem.location) {
+        const itemType = mem.tags.find(t => ['FOOD', 'WATER', 'ENERGY_DRINK'].includes(t))  || 'RESOURCE';
+
+        if (!memory.mazeKnowledge.resourceLocations[itemType]) {
+          memory.mazeKnowledge.resourceLocations[itemType] = [];
+        }
+
+        // Add if not already recorded
+        const exists = memory.mazeKnowledge.resourceLocations[itemType].some(loc =>
+          loc.x === mem.location!.x && loc.y === mem.location!.y
+        );
+
+        if (!exists) {
+          memory.mazeKnowledge.resourceLocations[itemType].push(mem.location);
+        }
+      }
+    });
+
+    // Extract exit discoveries
+    const exitMemories = allMemories.filter(m =>
+      m.description.toLowerCase().includes('exit') && m.importance >= 8
+    );
+
+    exitMemories.forEach(mem => {
+      if (mem.location) {
+        const existing = memory.mazeKnowledge.exitLocations.find(e =>
+          e.location.x === mem.location!.x && e.location.y === mem.location!.y
+        );
+
+        if (existing) {
+          existing.timesReached++;
+        } else {
+          memory.mazeKnowledge.exitLocations.push({
+            location: mem.location,
+            discoveredInRun: memory.simulationHistory[memory.simulationHistory.length - 1]?.runId || 'unknown',
+            discoveryTime: Date.now(),
+            requiresKey: mem.description.toLowerCase().includes('key'),
+            requiresMultipleAgents: mem.description.toLowerCase().includes('team') ||
+                                   mem.description.toLowerCase().includes('multiple'),
+            activationMethod: this.extractActivationMethod(mem.description),
+            timesReached: 1,
+            timesExited: 0
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Update strategies based on outcome
+   */
+  private updateStrategies(
+    memory: CrossSimulationMemory,
+    agent: Agent,
+    outcome: SimulationRun['outcome'],
+    survivalTime: number
+  ): void {
+    const allMemories = agent.getMemoryStream().getAllMemories();
+    const planMemories = allMemories.filter(m => m.type === 'PLAN');
+
+    if (planMemories.length > 0) {
+      // Extract strategy from first plan
+      const firstPlan = planMemories[0];
+      const strategyName = this.extractStrategyName(firstPlan.description);
+
+      // Find or create strategy
+      let strategy = memory.strategies.successful
+        .concat(memory.strategies.failed)
+        .find(s => s.name === strategyName);
+
+      if (strategy) {
+        // Update existing
+        strategy.timesAttempted++;
+        const successValue = outcome === 'SUCCESS' ? 1.0 : 0.0;
+        const totalOutcome = strategy.avgOutcome * (strategy.timesAttempted - 1) + successValue;
+        strategy.avgOutcome = totalOutcome / strategy.timesAttempted;
+        strategy.successRate = strategy.avgOutcome;
+
+        const totalTime = strategy.avgSurvivalTime * (strategy.timesAttempted - 1) + survivalTime;
+        strategy.avgSurvivalTime = totalTime / strategy.timesAttempted;
+        strategy.lastAttempted = Date.now();
+
+        // Move between successful/failed lists based on success rate
+        if (strategy.successRate >= 0.5 && !memory.strategies.successful.includes(strategy)) {
+          memory.strategies.failed = memory.strategies.failed.filter(s => s.id !== strategy.id);
+          memory.strategies.successful.push(strategy);
+        } else if (strategy.successRate < 0.5 && !memory.strategies.failed.includes(strategy)) {
+          memory.strategies.successful = memory.strategies.successful.filter(s => s.id !== strategy.id);
+          memory.strategies.failed.push(strategy);
+        }
+      } else {
+        // Create new strategy
+        const newStrategy: Strategy = {
+          id: `strat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: strategyName,
+          description: firstPlan.description.substring(0, 300),
+          conditions: [],
+          actions: [],
+          successRate: outcome === 'SUCCESS' ? 1.0 : 0.0,
+          timesAttempted: 1,
+          avgOutcome: outcome === 'SUCCESS' ? 1.0 : 0.0,
+          avgSurvivalTime: survivalTime,
+          firstAttempted: Date.now(),
+          lastAttempted: Date.now()
+        };
+
+        if (outcome === 'SUCCESS') {
+          memory.strategies.successful.push(newStrategy);
+        } else {
+          memory.strategies.failed.push(newStrategy);
+        }
+      }
+    }
+
+    // Limit strategy storage
+    memory.strategies.successful = memory.strategies.successful.slice(-15);
+    memory.strategies.failed = memory.strategies.failed.slice(-15);
+  }
+
+  /**
+   * Update performance metrics
+   */
+  private updatePerformance(memory: CrossSimulationMemory, run: SimulationRun): void {
+    const perf = memory.performance;
+
+    perf.totalRuns++;
+    if (run.outcome === 'SUCCESS') {
+      perf.successfulExits++;
+    }
+
+    // Update average survival time
+    const totalTime = perf.averageSurvivalTime * (perf.totalRuns - 1);
+    perf.averageSurvivalTime = (totalTime + run.survivalTime) / perf.totalRuns;
+
+    // Update best/worst times
+    if (perf.bestSurvivalTime === 0 || run.survivalTime > perf.bestSurvivalTime) {
+      perf.bestSurvivalTime = run.survivalTime;
+    }
+    if (perf.worstSurvivalTime === 0 || run.survivalTime < perf.worstSurvivalTime) {
+      perf.worstSurvivalTime = run.survivalTime;
+    }
+
+    // Track deaths
+    if (run.outcome === 'DEATH') {
+      perf.totalDeaths++;
+      const locKey = `${run.finalPosition.x},${run.finalPosition.y}`;
+      const currentCount = perf.deathLocations.get(locKey) || 0;
+      perf.deathLocations.set(locKey, currentCount + 1);
+    }
+
+    // Update resource stats
+    perf.totalResourcesCollected += run.resourcesCollected;
+    perf.totalTeammatesHelped += run.teammatesHelped;
+  }
+
+  /**
+   * Update social knowledge
+   */
+  private updateSocialKnowledge(memory: CrossSimulationMemory, agent: Agent): void {
+    const allMemories = agent.getMemoryStream().getAllMemories();
+
+    // Find social interactions
+    const socialMemories = allMemories.filter(m =>
+      m.tags.includes('social') || m.tags.includes('conversation') || m.tags.includes('cooperation')
+    );
+
+    // Update trust levels and learned knowledge
+    // (Simplified - you'd implement more sophisticated trust calculation)
+    socialMemories.forEach(mem => {
+      if (mem.description.includes('helped') || mem.description.includes('shared')) {
+        // Positive interaction
+        const match = mem.description.match(/(\w+)\s+(helped|shared)/);
+        if (match) {
+          const partnerId = match[1];
+          const currentTrust = memory.socialKnowledge.trustLevels.get(partnerId) || 0.5;
+          memory.socialKnowledge.trustLevels.set(partnerId, Math.min(1.0, currentTrust + 0.1));
+        }
+      }
+    });
+  }
+
+  /**
+   * Extract key learnings from simulation
+   */
+  private extractKeyLearnings(agent: Agent, outcome: SimulationRun['outcome']): string[] {
+    const learnings: string[] = [];
+    const allMemories = agent.getMemoryStream().getAllMemories();
+
+    // Get high-importance memories
+    const importantMemories = allMemories
+      .filter(m => m.importance >= 8)
+      .sort((a, b) => b.importance - a.importance)
+      .slice(0, 5);
+
+    importantMemories.forEach(mem => {
+      learnings.push(mem.description.substring(0, 150));
+    });
+
+    // Add outcome-specific learning
+    if (outcome === 'SUCCESS') {
+      learnings.push('Successfully exited the maze this run - strategy worked!');
+    } else if (outcome === 'DEATH') {
+      const pos = agent.getTilePosition();
+      learnings.push(`Died at (${pos.x},${pos.y}) - must avoid this strategy or location`);
+    }
+
+    return learnings;
+  }
+
+  /**
+   * Storage operations (browser localStorage)
+   */
+  private loadFromStorage(agentId: string): CrossSimulationMemory | null {
+    if (!this.useLocalStorage || typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    try {
+      const key = `${this.storageKey}_${agentId}`;
+      const data = localStorage.getItem(key);
+
+      if (!data) {
+        return null;
+      }
+
+      const parsed: SerializableCrossSimMemory = JSON.parse(data);
+
+      // Deserialize Maps
+      return {
+        ...parsed,
+        performance: {
+          ...parsed.performance,
+          deathLocations: new Map(parsed.performance.deathLocations)
+        },
+        socialKnowledge: {
+          learnedFromOthers: new Map(parsed.socialKnowledge.learnedFromOthers),
+          trustLevels: new Map(parsed.socialKnowledge.trustLevels),
+          cooperationHistory: parsed.socialKnowledge.cooperationHistory
+        }
+      };
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      return null;
+    }
+  }
+
+  private saveToStorage(agentId: string, memory: CrossSimulationMemory): void {
+    if (!this.useLocalStorage || typeof localStorage === 'undefined') {
+      console.warn('localStorage not available');
+      return;
+    }
+
+    try {
+      const key = `${this.storageKey}_${agentId}`;
+
+      // Serialize Maps to arrays
+      const serializable: SerializableCrossSimMemory = {
+        ...memory,
+        performance: {
+          ...memory.performance,
+          deathLocations: Array.from(memory.performance.deathLocations.entries())
+        },
+        socialKnowledge: {
+          learnedFromOthers: Array.from(memory.socialKnowledge.learnedFromOthers.entries()),
+          trustLevels: Array.from(memory.socialKnowledge.trustLevels.entries()),
+          cooperationHistory: memory.socialKnowledge.cooperationHistory
+        }
+      };
+
+      const data = JSON.stringify(serializable);
+      localStorage.setItem(key, data);
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }
+
+  /**
+   * Helper methods
+   */
+  private createEmptyMemory(agentId: string, agentName: string): CrossSimulationMemory {
+    return {
+      agentId,
+      agentName,
+      simulationHistory: [],
+      mazeKnowledge: {
+        discoveredPaths: [],
+        deadEnds: [],
+        dangerZones: [],
+        resourceLocations: {},
+        exitLocations: [],
+        safeRooms: []
+      },
+      strategies: {
+        successful: [],
+        failed: [],
+        bestPractices: []
+      },
+      performance: {
+        totalRuns: 0,
+        successfulExits: 0,
+        averageSurvivalTime: 0,
+        totalDeaths: 0,
+        deathLocations: new Map(),
+        bestSurvivalTime: 0,
+        worstSurvivalTime: 0,
+        totalResourcesCollected: 0,
+        totalTeammatesHelped: 0
+      },
+      socialKnowledge: {
+        learnedFromOthers: new Map(),
+        trustLevels: new Map(),
+        cooperationHistory: []
+      },
+      lastSimulationDate: Date.now(),
+      totalExperienceHours: 0,
+      version: '1.0.0'
+    };
+  }
+
+  private inferDangerType(description: string): DangerInfo['type'] {
+    const lower = description.toLowerCase();
+    if (lower.includes('trap')) return 'TRAP';
+    if (lower.includes('dead end')) return 'DEAD_END';
+    if (lower.includes('enemy')) return 'ENEMY';
+    if (lower.includes('starv') || lower.includes('hunger')) return 'STARVATION';
+    if (lower.includes('exhaust') || lower.includes('energy')) return 'EXHAUSTION';
+    return 'ENVIRONMENTAL';
+  }
+
+  private extractActivationMethod(description: string): string {
+    if (description.toLowerCase().includes('key')) return 'Requires key';
+    if (description.toLowerCase().includes('lever')) return 'Pull lever';
+    if (description.toLowerCase().includes('button')) return 'Press button';
+    if (description.toLowerCase().includes('team')) return 'Team activation';
+    return 'Unknown';
+  }
+
+  private extractStrategyName(description: string): string {
+    // Extract first 5 words and create a simple name
+    const words = description.split(/\s+/).slice(0, 5);
+    return words.join('_').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  }
+
+  /**
+   * Public API for inspection
+   */
+  public getAllAgentMemories(): Map<string, CrossSimulationMemory> {
+    return new Map(this.cache);
+  }
+
+  public clearMemories(agentId?: string): void {
+    if (agentId) {
+      this.cache.delete(agentId);
+      if (this.useLocalStorage && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(`${this.storageKey}_${agentId}`);
+      }
+      console.log(`🗑️  Cleared memories for agent ${agentId}`);
+    } else {
+      this.cache.clear();
+      if (this.useLocalStorage && typeof localStorage !== 'undefined') {
+        Object.keys(localStorage)
+          .filter(key => key.startsWith(this.storageKey))
+          .forEach(key => localStorage.removeItem(key));
+      }
+      console.log('🗑️  Cleared ALL agent memories');
+    }
+  }
+}

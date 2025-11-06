@@ -97,6 +97,14 @@ export interface PlanningContext {
   explorationProgress: number;
   knownItems: Array<{type: string; position: Position}>;
 
+  // Week 9: Location hierarchy context
+  locationDescription?: string;      // Natural language location description
+  nearbyObjects?: Array<{             // Objects within interaction range
+    name: string;
+    capabilities: string[];
+    effects: string[];
+  }>;
+
   // Memory
   recentMemories: string[];
   recentReflections: string[];

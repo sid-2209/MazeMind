@@ -31,6 +31,9 @@ import { Item, getItemDescription, getItemName } from '../entities/Item'; // Wee
 import { PlanningSystem } from '../systems/PlanningSystem'; // Week 5
 import { DailyPlan, ActionPlan, PlanningContext } from '../types/planning'; // Week 5
 import { SocialMemory } from './SocialMemory'; // Week 6
+import { WorldHierarchy } from '../systems/WorldHierarchy'; // Week 9
+import { ActionExecutor } from './ActionExecutor'; // Week 9
+import { LocationContext } from '../types/environment'; // Week 9
 import { v4 as uuidv4 } from 'uuid';
 
 export class Agent {
@@ -71,6 +74,10 @@ export class Agent {
 
   // Social memory system (Week 6)
   private socialMemory!: SocialMemory;
+
+  // World hierarchy and actions (Week 9)
+  private worldHierarchy: WorldHierarchy | null = null;
+  private actionExecutor: ActionExecutor | null = null;
 
   // Survival systems (Week 3)
   private resourceManager: ResourceManager;
@@ -628,6 +635,59 @@ export class Agent {
     return this.planningSystem;
   }
 
+  // ============================================
+  // World Hierarchy & Actions (Week 9)
+  // ============================================
+
+  /**
+   * Set world hierarchy reference (called by Game during initialization)
+   */
+  setWorldHierarchy(worldHierarchy: WorldHierarchy): void {
+    this.worldHierarchy = worldHierarchy;
+
+    // Initialize ActionExecutor with both references (agent first, then worldHierarchy)
+    this.actionExecutor = new ActionExecutor(this, worldHierarchy);
+
+    console.log('🌍 WorldHierarchy and ActionExecutor linked to agent');
+  }
+
+  /**
+   * Get world hierarchy
+   */
+  getWorldHierarchy(): WorldHierarchy | null {
+    return this.worldHierarchy;
+  }
+
+  /**
+   * Get action executor
+   */
+  getActionExecutor(): ActionExecutor | null {
+    return this.actionExecutor;
+  }
+
+  /**
+   * Get current location context (for planning and decision-making)
+   */
+  getLocationContext(): LocationContext | null {
+    if (!this.worldHierarchy) {
+      return null;
+    }
+
+    return this.worldHierarchy.getLocationContext(this.getTilePosition());
+  }
+
+  /**
+   * Add observation to memory with proper formatting
+   */
+  addObservation(description: string, importance: number, tags: string[], position?: Position): void {
+    this.memoryStream.addObservation(
+      description,
+      importance,
+      tags,
+      position || this.currentPosition
+    );
+  }
+
   /**
    * Get current planning context for plan generation
    */
@@ -638,10 +698,27 @@ export class Agent {
       .slice(-5)
       .map(m => m.description);
 
-    const recentReflections = this.memoryStream
-      .getMemoriesByType('reflection')
-      .slice(-3)
-      .map(m => m.description);
+    // Week 8: Get enhanced reflections from ReflectionSystem if available
+    let recentReflections: string[];
+    if (this.reflectionSystem) {
+      const tree = this.reflectionSystem.getReflectionTree();
+      // Get top 5 reflections sorted by importance (all levels)
+      const allReflections = [
+        ...tree.firstOrderReflections,
+        ...tree.secondOrderReflections,
+        ...tree.higherOrderReflections
+      ].sort((a, b) => b.importance - a.importance).slice(0, 5);
+
+      recentReflections = allReflections.map(r =>
+        `[${r.category.toUpperCase()}] ${r.content} (importance: ${r.importance})`
+      );
+    } else {
+      // Fallback to basic reflection memories
+      recentReflections = this.memoryStream
+        .getMemoriesByType('reflection')
+        .slice(-3)
+        .map(m => m.description);
+    }
 
     // Get items from item generator if available
     const knownItems = this.itemGenerator
@@ -653,6 +730,44 @@ export class Agent {
 
     // Get exploration progress - stub for now (will be enhanced with fog of war)
     const explorationProgress = 0.3; // Placeholder
+
+    // Week 9: Get location context for planning
+    let locationDescription: string | undefined;
+    let nearbyObjects: Array<{ name: string; capabilities: string[]; effects: string[] }> | undefined;
+
+    if (this.worldHierarchy) {
+      const locationContext = this.worldHierarchy.getLocationContext(this.getTilePosition());
+
+      if (locationContext) {
+        locationDescription = locationContext.description;
+
+        // Format nearby objects with capabilities and effects
+        nearbyObjects = locationContext.nearbyObjects.map(obj => ({
+          name: obj.name,
+          capabilities: obj.capabilities,
+          effects: obj.capabilities.map(cap => {
+            // Map capabilities to effect descriptions
+            const effectMap: Record<string, string> = {
+              'sit_on': 'Restores energy +10, Reduces stress -5',
+              'sleep_on': 'Restores energy +50, Reduces stress -20',
+              'sit_at': 'Restores energy +10, Reduces stress -5',
+              'cook_at': 'Restores hunger +40',
+              'read_from': 'Reduces stress -10',
+              'write_at': 'Reduces stress -8',
+              'drink_from': 'Restores thirst +30',
+              'wash_at': 'Reduces stress -5',
+              'search': 'May find items',
+              'examine': 'Provides detailed information',
+              'open': 'Opens container',
+              'close': 'Closes container',
+              'light': 'Provides light',
+              'extinguish': 'Removes light'
+            };
+            return effectMap[cap] || 'Unknown effect';
+          })
+        }));
+      }
+    }
 
     return {
       survivalState: {
@@ -667,7 +782,10 @@ export class Agent {
       recentMemories,
       recentReflections,
       gameTime: 0, // Will be passed from Game
-      timeOfDay: 'morning' // Placeholder - will be enhanced with time system
+      timeOfDay: 'morning', // Placeholder - will be enhanced with time system
+      // Week 9: Add location context
+      locationDescription,
+      nearbyObjects
     };
   }
 

@@ -104,6 +104,8 @@ function setupUI(): void {
         📋 P: Planning Panel<br>
         📈 C: Current Run Panel<br>
         💬 D: Dialogue Panel<br>
+        🌲 F: Reflection Tree<br>
+        🗺️ G: Location Tree<br>
         🎯 H: Help/Controls<br>
         ⏰ T: Skip Time<br>
         ⏩ [ / ]: Time Speed<br>

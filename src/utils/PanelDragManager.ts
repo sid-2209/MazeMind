@@ -18,7 +18,7 @@
  *   });
  */
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 
 export interface DragConfig {
   id: string;                    // Unique ID for localStorage
@@ -36,11 +36,13 @@ interface DragState {
   offsetX: number;
   offsetY: number;
   dragHandle: Graphics | null;
+  config: Required<DragConfig>; // Store config for later use
 }
 
 export class PanelDragManager {
   private static currentMaxZIndex: number = 1000;
   private static readonly BASE_Z_INDEX = 1000;
+  private static readonly EDGE_PADDING = 20; // Increased padding from screen edges to prevent clipping (accounts for borders)
 
   private dragStates: Map<Container, DragState> = new Map();
   private screenWidth: number = window.innerWidth;
@@ -64,7 +66,8 @@ export class PanelDragManager {
       startY: 0,
       offsetX: 0,
       offsetY: 0,
-      dragHandle: null
+      dragHandle: null,
+      config: fullConfig
     };
 
     this.dragStates.set(container, dragState);
@@ -106,12 +109,13 @@ export class PanelDragManager {
 
     // Add panel name text
     const panelName = config.id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    const titleText = new (window as any).PIXI.Text(panelName, {
+    const titleStyle = new TextStyle({
       fontFamily: 'Courier New, monospace',
       fontSize: 12,
       fill: 0x00ff00,
       fontWeight: 'bold'
     });
+    const titleText = new Text(panelName, titleStyle);
     titleText.x = 10;
     titleText.y = 10;
     titleBar.addChild(titleText);
@@ -170,20 +174,22 @@ export class PanelDragManager {
       let newX = position.x - dragState.offsetX;
       let newY = position.y - dragState.offsetY;
 
-      // Constrain to screen bounds
-      newX = Math.max(0, Math.min(this.screenWidth - config.width, newX));
-      newY = Math.max(0, Math.min(this.screenHeight - config.height, newY));
+      const padding = PanelDragManager.EDGE_PADDING;
 
-      // Apply snap to edges
+      // Constrain to screen bounds with padding
+      newX = Math.max(padding, Math.min(this.screenWidth - config.width - padding, newX));
+      newY = Math.max(padding, Math.min(this.screenHeight - config.height - padding, newY));
+
+      // Apply snap to edges (with padding)
       const threshold = config.snapThreshold;
 
-      if (newX < threshold) newX = 0;
-      if (newX > this.screenWidth - config.width - threshold) {
-        newX = this.screenWidth - config.width;
+      if (newX < threshold + padding) newX = padding;
+      if (newX > this.screenWidth - config.width - threshold - padding) {
+        newX = this.screenWidth - config.width - padding;
       }
-      if (newY < threshold) newY = 0;
-      if (newY > this.screenHeight - config.height - threshold) {
-        newY = this.screenHeight - config.height;
+      if (newY < threshold + padding) newY = padding;
+      if (newY > this.screenHeight - config.height - threshold - padding) {
+        newY = this.screenHeight - config.height - padding;
       }
 
       container.x = newX;
@@ -262,8 +268,9 @@ export class PanelDragManager {
     if (saved) {
       try {
         const { x, y } = JSON.parse(saved);
-        container.x = Math.max(0, Math.min(this.screenWidth - config.width, x));
-        container.y = Math.max(0, Math.min(this.screenHeight - config.height, y));
+        const padding = PanelDragManager.EDGE_PADDING;
+        container.x = Math.max(padding, Math.min(this.screenWidth - config.width - padding, x));
+        container.y = Math.max(padding, Math.min(this.screenHeight - config.height - padding, y));
       } catch (e) {
         // Invalid data, keep current position
       }
@@ -292,22 +299,14 @@ export class PanelDragManager {
     this.screenWidth = width;
     this.screenHeight = height;
 
-    // Constrain all managed containers
-    for (const [container, _state] of this.dragStates) {
-      const config = this.getConfigFromLocalStorage(container);
-      if (config) {
-        container.x = Math.max(0, Math.min(width - config.width, container.x));
-        container.y = Math.max(0, Math.min(height - config.height, container.y));
-      }
-    }
-  }
+    const padding = PanelDragManager.EDGE_PADDING;
 
-  /**
-   * Get config from localStorage (helper)
-   */
-  private getConfigFromLocalStorage(_container: Container): { width: number; height: number } | null {
-    // This is a simplified version - in practice, you'd store config alongside state
-    return null;
+    // Constrain all managed containers with padding
+    for (const [container, state] of this.dragStates) {
+      const config = state.config;
+      container.x = Math.max(padding, Math.min(width - config.width - padding, container.x));
+      container.y = Math.max(padding, Math.min(height - config.height - padding, container.y));
+    }
   }
 
   /**
