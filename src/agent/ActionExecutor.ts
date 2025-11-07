@@ -1,6 +1,6 @@
 // src/agent/ActionExecutor.ts
 /**
- * ActionExecutor - Rich object interactions (Week 9)
+ * ActionExecutor - Rich object interactions
  *
  * Implements the extended action vocabulary from Park et al. (2023):
  * "Agents can act on objects in accordance with their affordances"

@@ -1,222 +1,123 @@
 # 🧩 Maze Mind
 
-> AI resilience testing through simulated survival scenarios
+> AI agents with memory, reflection, and planning in a survival maze simulation
 
-An AI research simulation that tests artificial agent resilience, decision-making under pressure, and emergent human-like behaviors. Watch as Arth, an AI agent, navigates a procedurally-generated survival maze while managing resources, stress, and psychological states.
+[![Status](https://img.shields.io/badge/status-under%20development-yellow)](https://github.com/yourusername/maze-mind)
+[![Paper Alignment](https://img.shields.io/badge/paper%20alignment-87%25-brightgreen)](PAPER_ALIGNMENT_REPORT.md)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## 🎯 Quick Start
+**Maze Mind** is a research simulation implementing generative agent architecture based on [Park et al. (2023)](https://arxiv.org/abs/2304.03442). Autonomous AI agents navigate a procedurally generated maze with human-like memory, reflection, planning, and social interactions.
+
+## ✨ Features
+
+- 🧠 **Memory Stream**: Importance, recency, and relevance-based retrieval
+- 🔄 **Recursive Reflection**: Multi-level abstraction with importance-sum triggering
+- 📋 **Hierarchical Planning**: Daily → hourly → 5-minute action decomposition
+- 💬 **Multi-Agent Dialogue**: Context-aware conversations with information diffusion
+- 🌍 **Rich Environment**: Hierarchical world (areas → rooms → objects) with 14 actions
+- 🎯 **Survival Mechanics**: Hunger, energy, stress affecting agent behavior
+- 🗺️ **Fog of War**: Agent-perspective and god-mode views
+- 📊 **Real-time Panels**: Memory visualization, planning, dialogue, reflection trees
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- 16GB RAM recommended
-- macOS, Linux, or Windows
+- Node.js 18+
+- npm 9+
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# Clone repository
+git clone https://github.com/yourusername/maze-mind.git
 cd maze-mind
 
 # Install dependencies
 npm install
 
-# Copy environment file
-cp .env.example .env
-
 # Start development server
 npm run dev
 ```
 
-Visit `http://localhost:3000` to see the simulation!
-
-## 🎮 Controls (Week 1)
-
-- **WASD** or **Arrow Keys**: Move Arth
-- **Tab** or **1-5**: Cycle through view modes
-  - **1**: Agent POV (realistic view)
-  - **2**: God Mode (see everything)
-  - **3**: Mixed Mode (balanced)
-  - **5**: Debug Mode (development tools)
-- **Esc**: Pause/Menu
-- **Mouse Wheel**: Zoom in/out
-
-## 📊 Project Status
-
-| Week | Status | Focus | Deliverables |
-|------|--------|-------|--------------|
-| Week 1 | ✅ Complete | Beautiful Visuals | Maze rendering, manual controls, day/night cycle, fog of war |
-| Week 2 | ✅ Complete | Memory & AI | Memory stream, embeddings, LLM integration, autonomous AI |
-| Week 3 | 📅 Ready to Implement | Survival Mechanics | Resources, stress, psychological states, cognitive degradation |
-| Week 4 | 📅 Planned | Analysis & Polish | Data collection, experiments, metrics |
-
-## 🧠 The Agent: Arth
-
-**Name**: Arth (24 years old)  
-**Background**: Former underground courier  
-**Sentence**: The Maze (100% expected mortality)  
-**Motivation**: Survive to reunite with his girlfriend, Elena
-
-**Traits**: Focused, committed, willful, resourceful, analytical
+Open [http://localhost:3001](http://localhost:3001)
 
 ## 🏗️ Architecture
 
-Built using Stanford's Generative Agents methodology:
-
-```
-┌─────────────────────────────────┐
-│   PixiJS Visualization Layer    │
-│  (Beautiful 2D rendering)       │
-└─────────────────────────────────┘
-           ↕
-┌─────────────────────────────────┐
-│   Game Engine Layer             │
-│  (Time, physics, interactions)  │
-└─────────────────────────────────┘
-           ↕
-┌─────────────────────────────────┐
-│   AI Agent Layer                │
-│  • Memory Stream                │
-│  • Retrieval (recency +         │
-│    importance + relevance)      │
-│  • Reflection System            │
-│  • Planning & Reaction          │
-└─────────────────────────────────┘
-           ↕
-┌─────────────────────────────────┐
-│   Claude API (LLM)              │
-└─────────────────────────────────┘
-```
-
-## 📁 Project Structure
-
 ```
 src/
-├── config/         # Configuration files
-├── core/           # Game engine (time, input)
-├── maze/           # Maze generation & pathfinding
-├── agent/          # Arth's systems (state, memory, AI)
-├── rendering/      # PixiJS rendering & effects
-├── ui/             # User interface components
-├── utils/          # Utility functions
-└── main.ts         # Application entry point
+├── agent/          # Agent logic (memory, reflection, planning)
+├── core/           # Game loop, time management
+├── maze/           # Maze generation, pathfinding
+├── rendering/      # PixiJS rendering, fog of war, camera
+├── systems/        # Multi-agent, conversation, world hierarchy
+├── ui/             # Panels, controls, visualization
+├── evaluation/     # Believability metrics
+└── config/         # Game configuration
 ```
 
-## 🎨 Features
+## 🧪 LLM Integration
 
-### Week 1 (Current)
-- ✅ Procedurally generated 20×20 maze
-- ✅ Beautiful pixel art rendering with PixiJS
-- ✅ Smooth character animations (4 directions)
-- ✅ Day/night cycle with dynamic lighting
-- ✅ Fog of war (visibility system)
-- ✅ Multiple view modes
-- ✅ Status panel & mini-map
+Maze Mind supports multiple LLM providers:
 
-### Week 2 (Upcoming)
-- 🔜 Memory stream (observations, reflections)
-- 🔜 Vector embeddings for memory retrieval
-- 🔜 Claude API integration
-- 🔜 Autonomous decision-making
+- **Ollama**: Local LLMs (Llama 3, Mistral, etc.)
+- **Anthropic**: Claude 3.5 Sonnet (requires API key)
 
-### Week 3 (Upcoming)
-- 🔜 Resource management (hunger, thirst, energy)
-- 🔜 Stress system
-- 🔜 Psychological state modeling
-- 🔜 Reflection generation
-- 🔜 Hierarchical planning
-
-### Week 4 (Upcoming)
-- 🔜 Multiple simulation runs
-- 🔜 Data collection & analysis
-- 🔜 Replay viewer
-- 🔜 Research metrics dashboard
-
-## 🔬 Research Objectives
-
-1. **AI Resilience**: How do agents perform under extreme resource constraints?
-2. **Decision Quality**: How does stress affect decision-making over time?
-3. **Emergent Behavior**: What strategies emerge from basic primitives?
-4. **Memory Architecture**: Can LLM-based memory enable long-term navigation?
-5. **Psychological Realism**: Can we simulate believable human-like responses?
-
-## 📊 Metrics Tracked
-
-- **Survival rate** and time to completion
-- **Exploration efficiency** and path optimization
-- **Resource management** quality
-- **Decision-making** patterns under stress
-- **Memory retrieval** accuracy
-- **Reflection** quality and insights
-- **Stress dynamics** and emotional states
-- **Cognitive degradation** over time
-
-## 💰 Cost Estimates
-
-- **Per simulation**: $8-16 USD (1-2M tokens)
-- **MVP testing** (20 runs): $160-320
-- **Full experiment** (50 runs): $400-800
-
-Uses Anthropic Claude API for LLM-based decisions.
-
-## 🛠️ Development
-
-### Available Scripts
-
+Set your API key in `.env`:
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm test             # Run tests
-npm run test:ui      # Run tests with UI
-npm run lint         # Lint code
-npm run format       # Format code
+VITE_ANTHROPIC_API_KEY=your_key_here
 ```
 
-### Adding Features
+## 📊 Paper Alignment
 
-1. Create feature branch: `git checkout -b feature/your-feature`
-2. Implement changes in appropriate `src/` directory
-3. Add tests in `tests/` directory
-4. Update documentation
-5. Submit pull request
+Implementation aligns **87%** with [Generative Agents (Park et al., 2023)](https://arxiv.org/abs/2304.03442):
 
-## 📚 Documentation
+| Component | Alignment |
+|-----------|-----------|
+| Memory Stream | 100% ✅ |
+| Reflection System | 95% ✅ |
+| Planning & Decomposition | 85% ✅ |
+| Environment & Actions | 85% ✅ |
+| Dialogue System | 80% ✅ |
+| Multi-Agent System | 75% 🟡 |
+| Evaluation Framework | 75% 🟡 |
 
-- **[PROJECT.md](docs/PROJECT.md)**: Complete project documentation
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: System architecture details
-- **[WEEK_1_PLAN.md](docs/WEEK_1_PLAN.md)**: Week 1 implementation plan
-- **[API_REFERENCE.md](docs/API_REFERENCE.md)**: API documentation
+See [PAPER_ALIGNMENT_REPORT.md](PAPER_ALIGNMENT_REPORT.md) for details.
 
 ## 🤝 Contributing
 
-This is an active research project. Contributions are welcome!
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+**Areas for contribution:**
+- Evaluation framework enhancements
+- Large-scale multi-agent scenarios (25+ agents)
+- New environment templates
+- Emergent behavior detection
+- Performance optimizations
 
 ## 📝 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## 🎯 Roadmap
 
-Based on research from:
-- **Stanford HAI**: Generative Agents (Park et al., 2023)
-- **DeepMind**: SIMA and Genie world models
-- **a16z**: AI Town architecture
-- **MineLand**: Multi-agent survival simulation
+- [ ] Large-scale agent simulations (25+ agents)
+- [ ] Advanced emergent behavior detection
+- [ ] Dynamic environment changes (weather, time effects)
+- [ ] Human evaluation studies
+- [ ] Performance optimizations
+- [ ] Web deployment
 
-## 📧 Contact
+## 📚 Research
 
-For research inquiries or collaboration opportunities, please open an issue or contact the research team.
+This project implements the architecture from:
+
+**Generative Agents: Interactive Simulacra of Human Behavior**
+Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, Michael S. Bernstein
+*UIST 2023* | [arXiv:2304.03442](https://arxiv.org/abs/2304.03442)
 
 ---
 
-**Version**: 0.1.0  
-**Status**: Week 1 - Foundation & Visuals  
-**Last Updated**: November 2, 2025
+**⚠️ Under Active Development** - Features and APIs may change frequently.
+
+**Questions?** Open an issue or start a discussion!

@@ -84,10 +84,6 @@ function setupUI(): void {
       max-width: 320px;
     ">
       <h3 style="margin: 0 0 10px 0; color: #00ff00;">🧩 Maze Mind</h3>
-      <div style="margin-bottom: 10px;">
-        <strong>Week 1, Day 8</strong><br>
-        Fog of War & View Modes
-      </div>
       <div style="border-top: 1px solid #00ff00; padding-top: 10px; margin-top: 10px;">
         <strong>Controls:</strong><br>
         🎮 Arrows: Move<br>
