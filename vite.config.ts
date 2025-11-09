@@ -24,6 +24,22 @@ export default defineConfig({
     port: 3000,
     open: true,
     host: true,
+    // Proxy Ollama API requests to localhost:11434 to avoid CORS issues
+    proxy: {
+      '/api/ollama': {
+        target: 'http://localhost:11434',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/ollama/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Ollama proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying Ollama request:', req.method, req.url);
+          });
+        },
+      },
+    },
   },
   
   build: {

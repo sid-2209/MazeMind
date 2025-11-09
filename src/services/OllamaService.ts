@@ -57,11 +57,18 @@ export class OllamaService {
   private isAvailable: boolean = false;
 
   constructor(config: Partial<OllamaConfig> = {}) {
+    // When running in browser (Vite dev server), use proxy path to avoid CORS
+    // The Vite proxy at /api/ollama forwards to http://localhost:11434
+    const isBrowser = typeof window !== 'undefined';
+    const defaultBaseUrl = isBrowser ? '/api/ollama' : 'http://localhost:11434';
+
     this.config = {
-      baseUrl: config.baseUrl || 'http://localhost:11434',
+      baseUrl: config.baseUrl || defaultBaseUrl,
       model: config.model || 'llama3.2:3b-instruct-q4_K_M',
-      timeout: config.timeout || 30000,  // 30 seconds
+      timeout: config.timeout || 60000,  // 60 seconds (increased for reflection system)
     };
+
+    console.log(`🔧 OllamaService: Using ${isBrowser ? 'proxied' : 'direct'} connection to ${this.config.baseUrl}`);
 
     // Check availability on initialization
     this.checkAvailability().catch(() => {

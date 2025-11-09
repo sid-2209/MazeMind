@@ -202,9 +202,13 @@ export class EmbeddingService {
         }
       }
 
-      // All providers failed, use fake embedding as last resort
-      console.error('❌ All embedding providers failed, using fake embedding');
-      return this.generateFakeEmbedding(text);
+      // All providers failed - CRITICAL ERROR for research
+      const errorMsg = `❌ CRITICAL: All embedding providers failed. Cannot generate fake embeddings in research mode.`;
+      console.error(errorMsg);
+      console.error(`   Configured provider: ${this.currentProvider}`);
+      console.error(`   Fallback chain: ${this.fallbackChain.join(' → ')}`);
+      console.error(`   This is a fatal error - research data integrity requires real embeddings.`);
+      throw new Error(errorMsg);
     }
   }
 
@@ -232,8 +236,13 @@ export class EmbeddingService {
         }
       }
 
-      // All failed, use fake embeddings
-      return texts.map(t => this.generateFakeEmbedding(t));
+      // All failed - CRITICAL ERROR for research
+      const errorMsg = `❌ CRITICAL: All embedding providers failed for batch generation. Cannot generate fake embeddings in research mode.`;
+      console.error(errorMsg);
+      console.error(`   Batch size: ${texts.length}`);
+      console.error(`   Configured provider: ${this.currentProvider}`);
+      console.error(`   Fallback chain: ${this.fallbackChain.join(' → ')}`);
+      throw new Error(errorMsg);
     }
   }
 

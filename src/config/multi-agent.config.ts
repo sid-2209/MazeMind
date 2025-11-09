@@ -21,9 +21,10 @@ export function getSelectedAgentConfigs(count: number): AgentConfig[] {
 }
 
 /**
- * Default: Single agent (Arth) for backward compatibility
+ * Default: Three agents (Arth, Vani, Kael) for full multi-agent autonomy
+ * Enables cooperative planning, danger communication, and role emergence
  */
-export const DEFAULT_AGENT_COUNT = 1;
+export const DEFAULT_AGENT_COUNT = 3;
 
 /**
  * Export predefined agents for external use

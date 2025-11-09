@@ -798,32 +798,43 @@ export class Game {
   }
 
   /**
-   * Toggle between manual and autonomous mode (NEW in Days 3-4)
+   * Toggle between manual and autonomous mode (UPDATED: Multi-agent support)
    */
   private toggleAutonomousMode(): void {
-    if (!this.autonomousController) {
-      console.warn('⚠️  Autonomous controller not initialized');
+    // Check if we have any autonomous controllers
+    if (this.autonomousControllers.size === 0) {
+      console.warn('⚠️  No autonomous controllers initialized');
       return;
     }
 
     this.isAutonomousMode = !this.isAutonomousMode;
 
     if (this.isAutonomousMode) {
-      // Switching to autonomous mode
-      if (this.agentController) {
-        this.agentController.setEnabled(false);
+      // Switching to autonomous mode - enable ALL agents
+      for (const [agentId, autoController] of this.autonomousControllers) {
+        autoController.setEnabled(true);
       }
-      this.autonomousController.setEnabled(true);
-      console.log('🤖 AUTONOMOUS MODE: AI is now controlling the agent');
-      console.log('   The agent will make decisions based on memories and observations');
+
+      // Disable manual controllers for all agents
+      for (const [agentId, controller] of this.agentControllers) {
+        controller.setEnabled(false);
+      }
+
+      console.log('🤖 AUTONOMOUS MODE: AI is now controlling all agents');
+      console.log('   Agents will make independent decisions based on memories and observations');
       console.log('   Press A again to return to manual control');
     } else {
-      // Switching to manual mode
-      this.autonomousController.setEnabled(false);
-      if (this.agentController) {
-        this.agentController.setEnabled(true);
+      // Switching to manual mode - disable ALL autonomous controllers
+      for (const [agentId, autoController] of this.autonomousControllers) {
+        autoController.setEnabled(false);
       }
-      console.log('🎮 MANUAL MODE: You are now controlling the agent');
+
+      // Enable manual controllers for all agents
+      for (const [agentId, controller] of this.agentControllers) {
+        controller.setEnabled(true);
+      }
+
+      console.log('🎮 MANUAL MODE: You can now control agents manually');
       console.log('   Use WASD or arrow keys to move');
       console.log('   Press A to enable autonomous mode');
     }

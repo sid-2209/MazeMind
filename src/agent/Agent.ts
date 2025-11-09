@@ -473,9 +473,15 @@ export class Agent {
     }
   ): void {
     // Prepare embedding configuration for real semantic embeddings
+    // RESEARCH MODE: NO FAKE EMBEDDINGS - only use configured providers
     const embeddingServiceConfig = embeddingConfig ? {
       provider: embeddingConfig.provider || 'openai',
-      fallbackChain: ['openai', 'ollama', 'fake'] as EmbeddingProvider[],
+      // Build fallback chain based on configured provider - NO FAKE EMBEDDINGS for research
+      fallbackChain: embeddingConfig.provider === 'ollama'
+        ? ['ollama'] as EmbeddingProvider[]  // Ollama-only when configured
+        : embeddingConfig.provider === 'openai'
+        ? ['openai', 'ollama'] as EmbeddingProvider[]  // OpenAI with Ollama fallback
+        : ['voyage', 'openai', 'ollama'] as EmbeddingProvider[],  // Voyage with fallbacks
       openaiApiKey: embeddingConfig.openaiApiKey,
       voyageApiKey: embeddingConfig.voyageApiKey,
       ollamaUrl: ollamaConfig?.url || 'http://localhost:11434',
